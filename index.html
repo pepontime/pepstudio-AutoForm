@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoform Pro - Cloud Management</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; overflow-x: hidden; background-color: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); }
+        .progress-line-animate { transition: width 1s linear; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.4); }
+        input[type="checkbox"] { cursor: pointer; }
+    </style>
+</head>
+<body class="text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 📘 อัปเดต Firebase Config ตามที่คุณระบุ
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmxTl0YKC1FGNRd4675ELvsZE86p4HlXg",
+            authDomain: "pepstudio-autoform.firebaseapp.com",
+            databaseURL: "https://pepstudio-autoform-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "pepstudio-autoform",
+            storageBucket: "pepstudio-autoform.firebasestorage.app",
+            messagingSenderId: "375000310342",
+            appId: "1:375000310342:web:87b23ab7e9ce15dcae2047",
+            measurementId: "G-WBC5984FVH"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = "autoform-v2-main";
+
+        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+        // Reusable Confirmation Modal
+        const ConfirmPopup = ({ isOpen, title, message, onConfirm, onCancel, confirmText = "ยืนยัน", cancelText = "ยกเลิก", type = "info" }) => {
+            if (!isOpen) return null;
+            const colors = {
+                danger: "bg-red-600 hover:bg-red-700 shadow-red-100",
+                info: "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100",
+                warning: "bg-amber-500 hover:bg-amber-600 shadow-amber-100"
+            };
+
+            return (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 modal-overlay animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-8 space-y-6 animate-in zoom-in-95 duration-200 text-center">
+                        <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-2 ${type === 'danger' ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-500'}`}>
+                            <Icon name={type === 'danger' ? 'alert-triangle' : 'help-circle'} className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-800">{title}</h3>
+                            <p className="text-slate-400 text-sm mt-2">{message}</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={onCancel} className="flex-1 bg-slate-100 text-slate-500 font-bold py-3 rounded-2xl hover:bg-slate-200"> {cancelText} </button>
+                            <button onClick={onConfirm} className={`flex-1 text-white font-bold py-3 rounded-2xl shadow-lg transition-all active:scale-95 ${colors[type]}`}> {confirmText} </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (iconRef.current && window.lucide) {
+                    iconRef.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+                    window.lucide.createIcons({ root: iconRef.current });
+                }
+            }, [name, className]);
+            return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+        };
+
+        const App = () => {
+            // Auth & User States
+            const [user, setUser] = useState(null);
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [currentUserData, setCurrentUserData] = useState(null);
+            const [loginUser, setLoginUser] = useState('');
+            const [loginPass, setLoginPass] = useState('');
+            
+            // Cloud Data States
+            const [projects, setProjects] = useState([]); 
+            const [tasks, setTasks] = useState([]);
+            const [allAdmins, setAllAdmins] = useState([]);
+            const [appSettings, setAppSettings] = useState({ logoUrl: '', siteName: 'Admin Login', mainAdminPass: '' });
+            
+            // UI States
+            const [activeProjectId, setActiveProjectId] = useState(null);
+            const [isAddingProject, setIsAddingProject] = useState(false);
+            const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+            const [isSettingInitialPass, setIsSettingInitialPass] = useState(false);
+            
+            // Task/Project States
+            const [inputUrl, setInputUrl] = useState('');
+            const [inputHtml, setInputHtml] = useState('');
+            const [inputCustomName, setInputCustomName] = useState('');
+            const [taskName, setTaskName] = useState('');
+            const [fieldValues, setFieldValues] = useState({});
+            const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+            const [scheduleTime, setScheduleTime] = useState('00:00:00');
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [selectedTask, setSelectedTask] = useState(null);
+
+            // Sub-Admin Creator State
+            const [newAdminForm, setNewAdminForm] = useState({
+                username: '', password: '',
+                permissions: { 
+                    canManageProjects: true, 
+                    canManageTasks: true, 
+                    canViewDetails: true, 
+                    canDeleteAnything: false 
+                }
+            });
+
+            const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'info' });
+
+            const triggerConfirm = (title, message, onConfirm, type = 'info') => {
+                setConfirmState({
+                    isOpen: true, title, message, type,
+                    onConfirm: () => {
+                        onConfirm();
+                        setConfirmState(prev => ({ ...prev, isOpen: false }));
+                    }
+                });
+            };
+
+            // 1. App Initialization & Favicon
+            useEffect(() => {
+                if (appSettings.logoUrl) {
+                    let link = document.querySelector("link[rel*='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'shortcut icon';
+                        document.getElementsByTagName('head')[0].appendChild(link);
+                    }
+                    link.href = appSettings.logoUrl;
+                }
+            }, [appSettings.logoUrl]);
+
+            useEffect(() => {
+                auth.signInAnonymously().catch(console.error);
+                const unsubscribe = auth.onAuthStateChanged(setUser);
+                return () => unsubscribe();
+            }, []);
+
+            // 2. Database Sync (RULE 1)
+            useEffect(() => {
+                if (!user) return;
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                
+                // Sync Settings
+                const unsubSettings = publicDataRef.onSnapshot(snap => {
+                    if (snap.exists) setAppSettings(prev => ({ ...prev, ...snap.data().settings }));
+                });
+
+                if (!isLoggedIn) return () => unsubSettings();
+
+                // Sync Admins
+                const unsubAdmins = publicDataRef.collection('admins').onSnapshot(snap => {
+                    const admins = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setAllAdmins(admins);
+                    
+                    // Check if current sub-admin is blocked
+                    if (currentUserData && currentUserData.role !== 'main') {
+                        const updatedSelf = admins.find(a => a.username === currentUserData.username);
+                        if (updatedSelf && updatedSelf.status === 'blocked') {
+                            alert('บัญชีของคุณถูกระงับการใช้งาน');
+                            setIsLoggedIn(false);
+                        }
+                    }
+                });
+
+                // Sync Projects
+                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => {
+                    setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+
+                // Sync Tasks
+                const unsubTasks = publicDataRef.collection('tasks').onSnapshot(snap => {
+                    setTasks(snap.docs.map(doc => ({ 
+                        id: doc.id, ...doc.data(),
+                        targetTime: doc.data().targetTime?.toDate(),
+                        createdAt: doc.data().createdAt?.toDate()
+                    })));
+                });
+
+                return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); };
+            }, [user, isLoggedIn, currentUserData]);
+
+            // 3. Automation Loop
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    const now = new Date();
+                    setCurrentTime(now);
+                    tasks.forEach(task => {
+                        if (task.status === 'pending' && now >= task.targetTime) submitTask(task);
+                    });
+                }, 1000);
+                return () => clearInterval(timer);
+            }, [tasks]);
+
+            // 4. Auth & Admin Logic
+            const handleLogin = async (e) => {
+                if(e) e.preventDefault();
+                
+                // 📗 Main Admin Login Logic
+                if (loginUser.toLowerCase() === 'admin') {
+                    if (!appSettings.mainAdminPass) {
+                        // บังคับตั้งรหัสผ่านครั้งแรก
+                        setCurrentUserData({ username: 'Admin', role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canViewDetails: true, canDeleteAnything: true }, status: 'active' });
+                        setIsLoggedIn(true);
+                        setIsSettingInitialPass(true);
+                    } else if (loginPass === appSettings.mainAdminPass) {
+                        setCurrentUserData({ username: 'Admin', role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canViewDetails: true, canDeleteAnything: true }, status: 'active' });
+                        setIsLoggedIn(true);
+                    } else {
+                        alert('รหัสผ่านแอดมินหลักไม่ถูกต้อง');
+                    }
+                    return;
+                }
+
+                // Sub-Admin Login
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                const adminSnap = await publicDataRef.collection('admins').where('username', '==', loginUser).where('password', '==', loginPass).get();
+
+                if (!adminSnap.empty) {
+                    const data = adminSnap.docs[0].data();
+                    if (data.status === 'blocked') return alert('บัญชีนี้ถูกระงับการใช้งาน');
+                    setCurrentUserData({ id: adminSnap.docs[0].id, ...data, role: 'sub' });
+                    setIsLoggedIn(true);
+                } else {
+                    alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+                }
+            };
+
+            const setMainAdminPassword = async (pass) => {
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                await publicDataRef.set({ settings: { mainAdminPass: pass } }, { merge: true });
+                setIsSettingInitialPass(false);
+                alert('ตั้งรหัสผ่านสำเร็จ! กรุณาจดจำรหัสผ่านนี้ไว้');
+            };
+
+            const updateSettings = async (newSettings) => {
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                await publicDataRef.set({ settings: newSettings }, { merge: true });
+            };
+
+            // 5. App Logic (Projects/Tasks)
+            const handleAddProject = async (e) => {
+                if(e) e.preventDefault();
+                if (!currentUserData.permissions.canManageProjects) return;
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(inputHtml, 'text/html');
+                    const scriptWithData = Array.from(doc.querySelectorAll('script')).find(s => s.innerText.includes('FB_PUBLIC_LOAD_DATA_'));
+                    if (!scriptWithData) throw new Error('ไม่พบข้อมูลฟอร์ม');
+                    const regex = /FB_PUBLIC_LOAD_DATA_ = (.*?);/s;
+                    const data = JSON.parse(scriptWithData.innerText.match(regex)[1]);
+                    const formTitle = data[1][8] || "ฟอร์มไม่มีชื่อ";
+                    const fields = data[1][1].map(item => {
+                        const label = item[1];
+                        const type = item[3]; 
+                        const entryIdSuffix = item[4]?.[0]?.[0];
+                        const options = item[4]?.[0]?.[1]?.map(opt => opt[0]) || [];
+                        if (!entryIdSuffix) return null;
+                        return { label, entryId: `entry.${entryIdSuffix}`, options: options.length > 0 ? options : null, type: type === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text') };
+                    }).filter(f => f !== null);
+
+                    const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                    await publicDataRef.collection('projects').add({
+                        title: formTitle, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username
+                    });
+                    setIsAddingProject(false);
+                    setInputHtml(''); setInputUrl(''); setInputCustomName('');
+                } catch (err) { alert(err.message); }
+            };
+
+            const addTaskToQueue = async (e) => {
+                if(e) e.preventDefault();
+                if (!activeProjectId || !currentUserData.permissions.canManageTasks) return;
+                const activeProject = projects.find(p => p.id === activeProjectId);
+                const target = new Date(`${scheduleDate}T${scheduleTime}`);
+                if (isNaN(target.getTime())) return alert('วันเวลาไม่ถูกต้อง');
+                
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                await publicDataRef.collection('tasks').add({
+                    projectId: activeProjectId,
+                    projectTitle: activeProject.title,
+                    projectCustomName: activeProject.customName,
+                    taskName: taskName || 'รายการใหม่',
+                    data: fieldValues,
+                    createdAt: firebase.firestore.Timestamp.fromDate(new Date()),
+                    targetTime: firebase.firestore.Timestamp.fromDate(target),
+                    status: 'pending',
+                    url: activeProject.url,
+                    createdBy: currentUserData.username
+                });
+                setTaskName(''); setFieldValues({});
+            };
+
+            const submitTask = async (task) => {
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                const taskRef = publicDataRef.collection('tasks').doc(task.id);
+                await taskRef.update({ status: 'sending' });
+                const responseUrl = task.url.replace('/viewform', '/formResponse');
+                const formBody = new URLSearchParams();
+                Object.entries(task.data).forEach(([key, val]) => {
+                    if (Array.isArray(val)) val.forEach(v => formBody.append(key, v));
+                    else formBody.append(key, val);
+                });
+                try {
+                    await fetch(responseUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formBody.toString() });
+                    await taskRef.update({ status: 'success' });
+                } catch (err) { await taskRef.update({ status: 'error' }); }
+            };
+
+            const toggleCheckbox = (entryId, option) => {
+                const current = fieldValues[entryId] || [];
+                const updated = current.includes(option) ? current.filter(o => o !== option) : [...current, option];
+                setFieldValues({ ...fieldValues, [entryId]: updated });
+            };
+
+            const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
+
+            // 6. UI Render (Login)
+            if (!isLoggedIn) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6 relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-20 pointer-events-none">
+                            <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-600 rounded-full blur-[150px]"></div>
+                            <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-600 rounded-full blur-[150px]"></div>
+                        </div>
+                        <form onSubmit={handleLogin} className="w-full max-w-md p-10 glass-panel rounded-[48px] shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 text-center">
+                            <div className="mb-10">
+                                {appSettings.logoUrl ? (
+                                    <img src={appSettings.logoUrl} className="w-24 h-24 mx-auto mb-6 object-cover rounded-full border-4 border-white shadow-xl" alt="Logo" />
+                                ) : (
+                                    <div className="w-20 h-20 bg-indigo-600 rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl">
+                                        <Icon name="shield-check" className="text-white w-10 h-10" />
+                                    </div>
+                                )}
+                                <h1 className="text-3xl font-black text-slate-800 tracking-tight">{appSettings.siteName}</h1>
+                                <p className="text-slate-400 text-sm mt-2 font-medium">ยืนยันตัวตนเพื่อเข้าถึงระบบ</p>
+                            </div>
+                            <div className="space-y-4 text-left">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                                    <input type="text" value={loginUser} onChange={e => setLoginUser(e.target.value)} placeholder="Username" className="w-full px-5 py-4 bg-slate-100 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
+                                </div>
+                                {(loginUser.toLowerCase() === 'admin' && !appSettings.mainAdminPass) ? null : (
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
+                                        <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} placeholder="Password" className="w-full px-5 py-4 bg-slate-100 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
+                                    </div>
+                                )}
+                                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all active:scale-95 mt-4">เข้าสู่ระบบ</button>
+                            </div>
+                        </form>
+                    </div>
+                );
+            }
+
+            // Dashboard
+            return (
+                <div className="min-h-screen px-4 pb-20">
+                    {/* Confirmation Dialog */}
+                    <ConfirmPopup 
+                        isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} 
+                        onConfirm={confirmState.onConfirm} 
+                        onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} 
+                        type={confirmState.type}
+                    />
+
+                    {/* First Time Password Setup */}
+                    {isSettingInitialPass && (
+                        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 modal-overlay">
+                            <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 text-center space-y-6 animate-in zoom-in-95">
+                                <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto"><Icon name="key" /></div>
+                                <div>
+                                    <h2 className="text-2xl font-black">ตั้งรหัสผ่านแอดมินหลัก</h2>
+                                    <p className="text-slate-400 text-sm mt-2">สำหรับการใช้งานในครั้งถัดไป</p>
+                                </div>
+                                <input type="password" id="initPassInput" placeholder="กำหนดรหัสผ่านใหม่" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" />
+                                <button onClick={() => setMainAdminPassword(document.getElementById('initPassInput').value)} className="w-full bg-indigo-600 text-white font-black py-3.5 rounded-2xl"> บันทึกรหัสผ่าน </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="max-w-6xl mx-auto pt-8">
+                        {/* NavBar */}
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+                            <div className="flex items-center gap-5">
+                                {appSettings.logoUrl ? (
+                                    <img src={appSettings.logoUrl} className="w-16 h-16 object-cover rounded-full shadow-lg border-2 border-white" alt="Logo" />
+                                ) : (
+                                    <div className="p-4 bg-indigo-600 rounded-full shadow-xl shadow-indigo-100"><Icon name="zap" className="text-white w-6 h-6" /></div>
+                                )}
+                                <div>
+                                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">{appSettings.siteName}</h1>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest ${currentUserData.role === 'main' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-600'}`}>
+                                            {currentUserData.role === 'main' ? 'Main Admin' : 'Sub Admin'}
+                                        </span>
+                                        <span className="text-[10px] font-mono text-slate-400 font-bold">{currentTime.toLocaleTimeString('th-TH')}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                                {currentUserData.role === 'main' && (
+                                    <button onClick={() => setIsAdminPanelOpen(true)} className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm">
+                                        <Icon name="settings" /> ตั้งค่าระบบ
+                                    </button>
+                                )}
+                                {currentUserData.permissions.canManageProjects && (
+                                    <button onClick={() => setIsAddingProject(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-all">
+                                        <Icon name="plus" /> โปรเจกต์ใหม่
+                                    </button>
+                                )}
+                                <button onClick={() => triggerConfirm("ออกจากระบบ", "คุณต้องการออกจากระบบ?", () => setIsLoggedIn(false))} className="p-2.5 bg-white text-red-500 rounded-xl hover:bg-red-50 border border-red-100 shadow-sm"><Icon name="power" className="w-6 h-6" /></button>
+                            </div>
+                        </div>
+
+                        <div className="grid lg:grid-cols-12 gap-8">
+                            {/* Left: Project List */}
+                            <div className="lg:col-span-3 space-y-3">
+                                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] px-2">Projects List</h3>
+                                {projects.map(p => (
+                                    <div key={p.id} className="relative group">
+                                        <button onClick={() => setActiveProjectId(p.id)} className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
+                                            <div className="flex flex-col truncate pr-4">
+                                                <span className="font-bold truncate text-sm">{p.title}</span>
+                                                <span className={`text-[10px] truncate ${activeProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>{p.customName}</span>
+                                            </div>
+                                            <Icon name="chevron-right" className={`w-4 h-4 shrink-0 transition-all ${activeProjectId === p.id ? 'opacity-100' : 'opacity-0'}`} />
+                                        </button>
+                                        {currentUserData.permissions.canDeleteAnything && (
+                                            <button onClick={() => triggerConfirm("ลบโปรเจกต์", `ยืนยันการลบ ${p.title}?`, () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(p.id).delete(), 'danger')} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded-lg transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Right: Active Project Area */}
+                            <div className="lg:col-span-9 space-y-8 animate-in slide-in-from-bottom-4">
+                                {activeProject ? (
+                                    <div className="grid md:grid-cols-2 gap-8">
+                                        <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("เพิ่มรายการ", "ต้องการเพิ่มรายการนี้เข้าคิว?", () => addTaskToQueue(e)) }} className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8 space-y-6">
+                                            <h2 className="font-black text-xl flex items-center gap-3 border-b pb-4"><Icon name="edit-3" className="text-indigo-600"/> สร้างคิวส่ง</h2>
+                                            <div className="space-y-4">
+                                                <input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} placeholder="ชื่อเรียกรายการ (เช่น คุณหญิง)..." className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" />
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold" />
+                                                    <input type="time" step="1" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold" />
+                                                </div>
+                                                <div className="pt-4 space-y-5 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                                                    {activeProject.fields.map((f, i) => (
+                                                        <div key={i} className="space-y-2">
+                                                            <label className="text-[11px] font-black text-slate-600 block px-1">{f.label}</label>
+                                                            {f.type === 'checkbox' ? (
+                                                                <div className="grid grid-cols-1 gap-2">
+                                                                    {f.options.map((opt, oi) => (
+                                                                        <label key={oi} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30 border border-transparent">
+                                                                            <input type="checkbox" className="w-4 h-4 rounded text-indigo-600" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
+                                                                            <span className="text-xs font-bold text-slate-700">{opt}</span>
+                                                                        </label>
+                                                                    ))}
+                                                                </div>
+                                                            ) : f.options ? (
+                                                                <select value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold">
+                                                                    <option value="">เลือกคำตอบ</option>
+                                                                    {f.options.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:bg-white font-bold" />
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <button type="submit" disabled={!currentUserData.permissions.canManageTasks} className="w-full bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-indigo-700 active:scale-95 transition-all"> เพิ่มรายการเข้าคิว </button>
+                                        </form>
+
+                                        <div className="space-y-4">
+                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">History & Monitoring</h3>
+                                            <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar">
+                                                {tasks.filter(t => t.projectId === activeProjectId).sort((a,b) => b.targetTime - a.targetTime).map(task => {
+                                                        const diff = task.targetTime - currentTime;
+                                                        const progress = task.status === 'pending' ? Math.min(100, Math.max(0, (1 - diff / (task.targetTime - task.createdAt)) * 100)) : 100;
+                                                        return (
+                                                            <div key={task.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all cursor-pointer" onClick={() => currentUserData.permissions.canViewDetails && setSelectedTask(task)}>
+                                                                <div className="p-5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${task.status === 'success' ? 'bg-green-100 text-green-600' : task.status === 'error' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                                            <Icon name={task.status === 'pending' ? 'timer' : 'check-circle'} className="w-6 h-6" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="font-bold text-slate-700 text-sm truncate max-w-[130px]">{task.taskName}</div>
+                                                                            {task.status === 'pending' && <div className="text-[10px] text-indigo-600 font-black animate-pulse">ส่งใน {Math.floor(diff/1000)}ว.</div>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="text-[9px] text-slate-400 font-mono text-right leading-tight font-bold">{task.targetTime.toLocaleDateString()}<br/>{task.targetTime.toLocaleTimeString()}</div>
+                                                                        {currentUserData.permissions.canDeleteAnything && (
+                                                                            <button onClick={(e) => { e.stopPropagation(); triggerConfirm("ลบรายการ", "ลบรายการนี้ออกจากคิว?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).delete(), 'danger') }} className="p-2 text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="h-1.5 w-full bg-slate-50"><div className="h-full progress-line-animate" style={{ width: `${progress}%`, backgroundColor: task.status === 'success' ? '#10b981' : '#6366f1' }}></div></div>
+                                                            </div>
+                                                        );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-[48px] border-4 border-dashed border-slate-100 p-32 text-center text-slate-300">
+                                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6"><Icon name="mouse-pointer-2" className="w-10 h-10 opacity-20" /></div>
+                                        <p className="font-black uppercase tracking-widest">เลือกโปรเจกต์จากด้านซ้าย</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Modals: Admin Settings, Add Project, Task View */}
+                    {isAdminPanelOpen && (
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl p-10 space-y-8 animate-in zoom-in-95 overflow-y-auto max-h-[90vh] custom-scrollbar">
+                                <div className="flex justify-between items-center border-b pb-6">
+                                    <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight"><Icon name="users" className="text-indigo-600" /> ตั้งค่าระบบและจัดการทีม</h2>
+                                    <button onClick={() => setIsAdminPanelOpen(false)} className="p-2 hover:bg-slate-50 rounded-full transition-all"><Icon name="x" /></button>
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-10">
+                                    <div className="space-y-6">
+                                        <div className="p-6 bg-slate-50 rounded-3xl space-y-4">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">ข้อมูลเว็บไซต์</h4>
+                                            <div className="space-y-3">
+                                                <input type="text" value={appSettings.siteName} onChange={e => setAppSettings({...appSettings, siteName: e.target.value})} placeholder="ชื่อเว็บไซต์ (Site Name)" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none font-bold" />
+                                                <input type="text" value={appSettings.logoUrl} onChange={e => setAppSettings({...appSettings, logoUrl: e.target.value})} placeholder="URL โลโก้ (วงกลม)" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none font-bold" />
+                                                <button onClick={() => triggerConfirm("บันทึกการตั้งค่า", "ต้องการบันทึกข้อมูลเว็บไซต์ใหม่?", () => updateSettings(appSettings))} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-100">บันทึกข้อมูลส่วนตัว</button>
+                                            </div>
+                                        </div>
+                                        <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("เพิ่มแอดมินรอง", `ต้องการเพิ่ม ${newAdminForm.username}?`, () => addSubAdmin(e)) }} className="space-y-4 bg-indigo-50/50 p-6 rounded-3xl">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">เพิ่มแอดมินรอง</h4>
+                                            <input type="text" value={newAdminForm.username} onChange={e => setNewAdminForm({...newAdminForm, username: e.target.value})} placeholder="Username" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none font-bold" required />
+                                            <input type="text" value={newAdminForm.password} onChange={e => setNewAdminForm({...newAdminForm, password: e.target.value})} placeholder="Password" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none font-bold" required />
+                                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                                {Object.keys(newAdminForm.permissions).map(perm => (
+                                                    <label key={perm} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer">
+                                                        <input type="checkbox" checked={newAdminForm.permissions[perm]} onChange={() => setNewAdminForm({...newAdminForm, permissions: {...newAdminForm.permissions, [perm]: !newAdminForm.permissions[perm]}})} className="w-3.5 h-3.5 text-indigo-600" />
+                                                        <span className="text-[9px] font-bold text-slate-500 uppercase">{perm.replace('can', '')}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <button type="submit" className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 shadow-xl transition-all shadow-indigo-100"> บันทึกสมาชิกใหม่ </button>
+                                        </form>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold ml-2">รายชื่อแอดมินรอง</h4>
+                                        <div className="space-y-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {allAdmins.map(admin => (
+                                                <div key={admin.id} className={`p-4 rounded-2xl border flex items-center justify-between ${admin.status === 'blocked' ? 'bg-red-50 border-red-100 opacity-60' : 'bg-white border-slate-100 shadow-sm'}`}>
+                                                    <div>
+                                                        <div className="font-black text-sm text-slate-700">{admin.username}</div>
+                                                        <div className="text-[9px] font-mono text-slate-400 font-bold uppercase">PASS: {admin.password}</div>
+                                                        <div className="flex gap-1 mt-1">
+                                                            {Object.entries(admin.permissions).map(([k, v]) => v && <div key={k} className="w-1.5 h-1.5 bg-indigo-400 rounded-full" title={k}></div>)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => triggerConfirm("เปลี่ยนสถานะ", "เปลี่ยนสถานะการเข้าถึง?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').doc(admin.id).update({ status: admin.status === 'active' ? 'blocked' : 'active' }))} className={`p-1.5 rounded-lg transition-all ${admin.status === 'active' ? 'bg-amber-50 text-amber-500' : 'bg-green-50 text-green-500'}`}><Icon name={admin.status === 'active' ? 'slash' : 'check'} className="w-4 h-4" /></button>
+                                                        <button onClick={() => triggerConfirm("ลบแอดมิน", "ต้องการลบอย่างถาวร?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').doc(admin.id).delete(), 'danger')} className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isAddingProject && (
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("สร้างโปรเจกต์", "สร้างคิวใหม่จากข้อมูลนี้?", () => handleAddProject(e)) }} className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 space-y-8 animate-in zoom-in-95">
+                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3 tracking-tight"><Icon name="plus-circle" className="text-indigo-600" /> เพิ่มโปรเจกต์ Cloud</h2>
+                                <div className="space-y-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">1. ชื่อโปรเจกต์ (ตั้งเอง)</label>
+                                        <input type="text" value={inputCustomName} onChange={e => setInputCustomName(e.target.value)} placeholder="เช่น งานจองคอนโด..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">2. ลิงก์ฟอร์ม (/viewform)</label>
+                                        <input type="text" value={inputUrl} onChange={e => setInputUrl(e.target.value)} placeholder="URL หน้าตอบคำถาม" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">3. HTML Source Code (Ctrl+U)</label>
+                                        <textarea value={inputHtml} onChange={e => setInputHtml(e.target.value)} placeholder="วาง HTML Source Code..." className="w-full h-32 px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-mono text-[10px] resize-none" required />
+                                    </div>
+                                </div>
+                                <div className="flex gap-3 pt-2">
+                                    <button type="button" onClick={() => setIsAddingProject(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl transition-all">ยกเลิก</button>
+                                    <button type="submit" className="flex-[2] bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-indigo-700 active:scale-95 shadow-indigo-100">สร้างโปรเจกต์ใหม่</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {selectedTask && (
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in" onClick={() => setSelectedTask(null)}>
+                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl p-10 space-y-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b pb-4">
+                                    <div className="flex flex-col truncate pr-4">
+                                        <h2 className="text-xl font-black text-slate-800 tracking-tight truncate">{selectedTask.taskName}</h2>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{selectedTask.projectCustomName}</span>
+                                    </div>
+                                    <button onClick={() => setSelectedTask(null)} className="p-3 hover:bg-slate-50 rounded-full transition-all text-slate-300 hover:text-slate-500"><Icon name="x" /></button>
+                                </div>
+                                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {projects.find(p => p.id === selectedTask.projectId)?.fields.map((f, i) => (
+                                        <div key={i} className="bg-slate-50/50 p-4 rounded-3xl border border-slate-50">
+                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">{f.label}</div>
+                                            <div className="text-sm font-bold text-slate-700">
+                                                {Array.isArray(selectedTask.data[f.entryId]) ? selectedTask.data[f.entryId].join(', ') : (selectedTask.data[f.entryId] || '(ว่าง)')}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="text-[9px] text-center text-slate-300 font-bold uppercase tracking-widest pt-4 flex flex-col gap-1 border-t border-slate-50">
+                                    <span>สร้างโดย {selectedTask.createdBy}</span>
+                                    <span>กำหนดส่ง {selectedTask.targetTime.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
