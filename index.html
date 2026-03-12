@@ -67,10 +67,24 @@
 
         const MAIN_ADMIN_DEFAULT_USER = "Admin";
 
-        // Helper functions for Local Date
-        const getLocalDateString = () => {
-            const d = new Date();
+        // Helper functions for STRICT Local Date and Time
+        const getLocalDateString = (d = new Date()) => {
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+        
+        const getLocalTimeString = (d = new Date()) => {
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+        };
+
+        // Formatters for strictly Displaying DD/MM/YYYY and 24h Time
+        const formatDisplayDate = (d) => {
+            if (!d) return '';
+            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+        };
+
+        const formatDisplayTime = (d) => {
+            if (!d) return '';
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
         };
 
         // Clipboard helper function (fallback support)
@@ -215,14 +229,14 @@
             const [taskName, setTaskName] = useState('');
             const [fieldValues, setFieldValues] = useState({});
             const [scheduleDate, setScheduleDate] = useState(getLocalDateString());
-            const [scheduleTime, setScheduleTime] = useState('00:00:00'); // Set default to 00:00:00
+            const [scheduleTime, setScheduleTime] = useState('00:00:00'); // Set default to 00:00:00 rigidly
             
             const [currentTime, setCurrentTime] = useState(new Date());
             const [selectedTask, setSelectedTask] = useState(null);
-            const [editingTaskId, setEditingTaskId] = useState(null); // Track if editing a task
+            const [editingTaskId, setEditingTaskId] = useState(null);
 
             const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-            const [generatedLink, setGeneratedLink] = useState(null); // Hold customer specific link
+            const [generatedLink, setGeneratedLink] = useState(null); 
 
             const [financeForm, setFinanceForm] = useState({ type: 'income', amount: '', note: '', customerName: '' });
             const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -483,7 +497,7 @@
                     const fields = data[1][1].map(item => {
                         const entryIdSuffix = item[4]?.[0]?.[0]; 
                         const options = item[4]?.[0]?.[1]?.map(opt => opt[0]) || [];
-                        const isReq = Boolean(item[4]?.[0]?.[2]); // อัปเดตตัวสแกนให้จับค่าจำเป็นต้องกรอก
+                        const isReq = Boolean(item[4]?.[0]?.[2]); 
                         if (!entryIdSuffix) return null;
                         return { 
                             label: item[1], entryId: `entry.${entryIdSuffix}`, options: options.length > 0 ? options : null, 
@@ -533,7 +547,7 @@
                 });
 
                 const link = `${window.location.origin}${window.location.pathname}?client_form=${docRef.id}`;
-                setGeneratedLink(link); // Pop up link
+                setGeneratedLink(link); 
                 
                 // Reset form
                 setTaskName(''); setFieldValues({}); 
@@ -708,7 +722,7 @@
                                 {appSettings.logoUrl ? <img src={appSettings.logoUrl} className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-full shadow-lg border-2 border-white" /> : <div className="p-3 sm:p-4 bg-indigo-600 rounded-full shadow-xl shadow-indigo-100"><Icon name="zap" className="text-white w-5 h-5 sm:w-6 sm:h-6" /></div>}
                                 <div>
                                     <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight font-bold">{appSettings.siteName}</h1>
-                                    <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest">{currentUserData?.username} • {currentTime.toLocaleTimeString('th-TH')}</span>
+                                    <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest">{currentUserData?.username} • {formatDisplayTime(currentTime)}</span>
                                 </div>
                             </div>
 
@@ -788,36 +802,34 @@
                                     </div>
                                 </div>
 
-                                {/* Financial & Overview Section */}
-                                {(currentUserData?.permissions?.canManageFinance || currentUserData?.role === 'main') && (
-                                    <div className="grid md:grid-cols-3 gap-6">
-                                        <div className="md:col-span-2 bg-slate-900 rounded-[40px] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-20 -mt-20"></div>
-                                            <h3 className="text-sm font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2 mb-8"><Icon name="pie-chart" className="w-4 h-4"/> ภาพรวมการเงิน</h3>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative z-10">
-                                                <div>
-                                                    <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายรับทั้งหมด</div>
-                                                    <div className="text-3xl md:text-4xl font-black text-green-400">+{dashboardStats.totalIncome.toLocaleString()}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายจ่ายทั้งหมด</div>
-                                                    <div className="text-3xl md:text-4xl font-black text-red-400">-{dashboardStats.totalExpense.toLocaleString()}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">ยอดคงเหลือสุทธิ</div>
-                                                    <div className={`text-3xl md:text-4xl font-black ${dashboardStats.balance >= 0 ? 'text-white' : 'text-red-300'}`}>{dashboardStats.balance.toLocaleString()}</div>
-                                                </div>
+                                {/* Financial & Overview Section (Visible to everyone) */}
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    <div className="md:col-span-2 bg-slate-900 rounded-[40px] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-20 -mt-20"></div>
+                                        <h3 className="text-sm font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2 mb-8"><Icon name="pie-chart" className="w-4 h-4"/> ภาพรวมการเงิน</h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative z-10">
+                                            <div>
+                                                <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายรับทั้งหมด</div>
+                                                <div className="text-3xl md:text-4xl font-black text-green-400">+{dashboardStats.totalIncome.toLocaleString()}</div>
                                             </div>
-                                        </div>
-                                        <div onClick={() => setViewStatModal('admins')} className="bg-white border border-slate-100 rounded-[40px] p-8 shadow-sm flex flex-col justify-center items-center text-center cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group">
-                                            <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 text-indigo-600 group-hover:scale-110 transition-all">
-                                                <Icon name="users" className="w-8 h-8" />
+                                            <div>
+                                                <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายจ่ายทั้งหมด</div>
+                                                <div className="text-3xl md:text-4xl font-black text-red-400">-{dashboardStats.totalExpense.toLocaleString()}</div>
                                             </div>
-                                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">ทีมงานระบบ <Icon name="external-link" className="w-4 h-4 text-slate-400"/></h3>
-                                            <p className="text-slate-500 mt-2 text-sm">แอดมินจำนวน {allAdmins.length} บัญชี ที่ดูแลระบบร่วมกัน</p>
+                                            <div>
+                                                <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">ยอดคงเหลือสุทธิ</div>
+                                                <div className={`text-3xl md:text-4xl font-black ${dashboardStats.balance >= 0 ? 'text-white' : 'text-red-300'}`}>{dashboardStats.balance.toLocaleString()}</div>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
+                                    <div onClick={() => setViewStatModal('admins')} className="bg-white border border-slate-100 rounded-[40px] p-8 shadow-sm flex flex-col justify-center items-center text-center cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group">
+                                        <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 text-indigo-600 group-hover:scale-110 transition-all">
+                                            <Icon name="users" className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">ทีมงานระบบ <Icon name="external-link" className="w-4 h-4 text-slate-400"/></h3>
+                                        <p className="text-slate-500 mt-2 text-sm">แอดมินจำนวน {allAdmins.length} บัญชี ที่ดูแลระบบร่วมกัน</p>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -964,7 +976,7 @@
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 shrink-0 pl-2">
-                                                                        <div className="text-[9px] text-slate-400 font-mono text-right leading-tight hidden sm:block">{task.targetTime.toLocaleDateString()}<br/>{task.targetTime.toLocaleTimeString()}</div>
+                                                                        <div className="text-[9px] text-slate-400 font-mono text-right leading-tight hidden sm:block">{formatDisplayDate(task.targetTime)}<br/>{formatDisplayTime(task.targetTime)}</div>
                                                                         {['draft', 'customer_submitted'].includes(task.status) && currentUserData?.permissions?.canManageTasks && 
                                                                             <button onClick={(e) => { e.stopPropagation(); triggerConfirm("อนุมัติส่งคิว", "เปลี่ยนสถานะเป็นคิวส่งจริง?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).update({ status: 'pending' })); }} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all" title="อนุมัติ"><Icon name="check" className="w-4 h-4" /></button>}
                                                                         {currentUserData?.permissions?.canDeleteAnything && <button onClick={(e) => { e.stopPropagation(); triggerConfirm("ลบรายการ", "ลบ?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).delete(); showToast('ลบแล้ว'); }, 'danger') }} className="p-2 text-slate-200 hover:text-red-500 transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>}
@@ -1027,8 +1039,8 @@
                                                         <div className="text-[10px] text-slate-500 uppercase mt-1">โปรเจกต์: {t.projectCustomName}</div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <div className="text-[10px] font-mono text-slate-400">{t.targetTime.toLocaleDateString('th-TH')}</div>
-                                                        <div className="text-[10px] font-mono text-slate-400">{t.targetTime.toLocaleTimeString('th-TH')}</div>
+                                                        <div className="text-[10px] font-mono text-slate-400">{formatDisplayDate(t.targetTime)}</div>
+                                                        <div className="text-[10px] font-mono text-slate-400">{formatDisplayTime(t.targetTime)}</div>
                                                     </div>
                                                 </div>
                                             ))
@@ -1207,7 +1219,7 @@
                                                             {customerSuggestions.map((s, idx) => (
                                                                 <div key={idx} onMouseDown={(e) => { e.preventDefault(); setFinanceForm({...financeForm, customerName: s.name}); setShowCustomerSuggestions(false); }} className="p-4 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0 transition-all group">
                                                                     <div className="font-black text-sm text-slate-800 group-hover:text-indigo-700 flex items-center gap-2">{s.name}<span className={`text-[8px] px-1.5 py-0.5 rounded border ${s.type === 'finance' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>{s.type === 'finance' ? 'การเงิน' : 'คิวงาน'}</span></div>
-                                                                    <div className="flex justify-between items-center mt-1.5"><span className="text-[11px] font-bold text-slate-500 truncate max-w-[65%]">{s.note}</span><span className="text-[9px] font-mono text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100">{s.date ? s.date.toLocaleDateString('th-TH') : ''}</span></div>
+                                                                    <div className="flex justify-between items-center mt-1.5"><span className="text-[11px] font-bold text-slate-500 truncate max-w-[65%]">{s.note}</span><span className="text-[9px] font-mono text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100">{formatDisplayDate(s.date)}</span></div>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -1233,7 +1245,7 @@
                                                         <div className="text-left flex items-start gap-3">
                                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1 ${rec.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}><Icon name={rec.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'} className="w-5 h-5"/></div>
                                                             <div>
-                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wide">{rec.date?.toLocaleDateString('th-TH')} • ผู้บันทึก: {rec.createdBy}</div>
+                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wide">{formatDisplayDate(rec.date)} • ผู้บันทึก: {rec.createdBy}</div>
                                                                 <div className="text-sm font-black text-slate-800 leading-tight mt-0.5">{rec.customerName}</div>
                                                                 <div className="text-xs font-bold text-slate-500 mt-1">{rec.note}</div>
                                                             </div>
@@ -1289,23 +1301,40 @@
                                         </div>
                                     ))}
                                 </div>
-                                <div className="flex flex-col sm:flex-row border-t shrink-0">
-                                    <div className="flex-1 text-[9px] text-slate-400 font-bold uppercase p-5 tracking-widest flex items-center justify-center text-center">
-                                        สร้างโดย {selectedTask.createdBy} <br/> ส่ง {selectedTask.targetTime.toLocaleString('th-TH')}
-                                    </div>
-                                    {['customer_submitted', 'draft', 'customer_link_created'].includes(selectedTask.status) && (
-                                        <button onClick={() => {
-                                            setTaskName(selectedTask.taskName);
-                                            setScheduleDate(selectedTask.targetTime.toISOString().split('T')[0]);
-                                            setScheduleTime(selectedTask.targetTime.toTimeString().split(' ')[0]);
-                                            setFieldValues(selectedTask.data || {});
-                                            setEditingTaskId(selectedTask.id);
-                                            setActiveProjectId(selectedTask.projectId);
-                                            setSelectedTask(null);
-                                        }} className="flex-1 bg-indigo-50 text-indigo-600 font-black hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2 p-5 border-l border-white">
-                                            <Icon name="edit" className="w-4 h-4"/> นำไปตรวจสอบ / แก้ไข
-                                        </button>
+                                <div className="flex flex-col shrink-0">
+                                    {/* Action Buttons Row */}
+                                    {(['customer_link_created', 'customer_submitted', 'draft'].includes(selectedTask.status)) && (
+                                        <div className="flex flex-row border-t border-slate-100">
+                                            {selectedTask.status === 'customer_link_created' && (
+                                                <button onClick={() => {
+                                                    const link = `${window.location.origin}${window.location.pathname}?client_form=${selectedTask.id}`;
+                                                    copyToClipboard(link, () => showToast('คัดลอกลิงก์แล้ว'));
+                                                }} className="flex-1 bg-emerald-50 text-emerald-600 font-black hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2 p-4 sm:p-5 border-r border-white">
+                                                    <Icon name="copy" className="w-4 h-4"/> คัดลอกลิงก์ใหม่
+                                                </button>
+                                            )}
+
+                                            {['customer_submitted', 'draft', 'customer_link_created'].includes(selectedTask.status) && (
+                                                <button onClick={() => {
+                                                    setTaskName(selectedTask.taskName);
+                                                    setScheduleDate(getLocalDateString(selectedTask.targetTime));
+                                                    setScheduleTime(getLocalTimeString(selectedTask.targetTime));
+                                                    setFieldValues(selectedTask.data || {});
+                                                    setEditingTaskId(selectedTask.id);
+                                                    setActiveProjectId(selectedTask.projectId);
+                                                    setSelectedTask(null);
+                                                }} className="flex-1 bg-indigo-50 text-indigo-600 font-black hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2 p-4 sm:p-5">
+                                                    <Icon name="edit" className="w-4 h-4"/> ตรวจสอบ / แก้ไข
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
+
+                                    {/* Task Info Row */}
+                                    <div className="w-full text-[10px] text-slate-400 font-bold uppercase p-4 tracking-widest text-center leading-relaxed border-t border-slate-100 bg-slate-50">
+                                        สร้างโดย {selectedTask.createdBy} <br/> 
+                                        ส่ง {formatDisplayDate(selectedTask.targetTime)} {formatDisplayTime(selectedTask.targetTime)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
