@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Autoform Pro - Cloud Management</title>
+    <title>Autoform Pro - Enterprise Management</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -28,7 +28,6 @@
         .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); }
         .progress-line-animate { transition: width 1s linear; }
         .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.4); }
-        input[type="checkbox"] { cursor: pointer; }
         
         /* Toast Animation */
         @keyframes slideInDown {
@@ -47,7 +46,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 📘 Firebase Configuration
+        // 📘 Firebase Configuration (Updated)
         const firebaseConfig = {
             apiKey: "AIzaSyBmxTl0YKC1FGNRd4675ELvsZE86p4HlXg",
             authDomain: "pepstudio-autoform.firebaseapp.com",
@@ -66,59 +65,51 @@
 
         const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-        const MAIN_ADMIN_USER = "Admin";
+        const MAIN_ADMIN_DEFAULT_USER = "Admin";
 
+        // Mapping สิทธิ์ภาษาไทย
         const PERMISSION_LABELS = {
             canManageProjects: "จัดการโปรเจกต์",
-            canManageTasks: "จัดการคิวงาน",
+            canManageTasks: "จัดการคิวงาน (ส่ง)",
+            canFillDrafts: "กรอกข้อมูลเบื้องต้น",
             canViewDetails: "ดูรายละเอียดข้อมูล",
+            canManageFinance: "จัดการการเงิน",
             canDeleteAnything: "ลบข้อมูลทุกอย่าง"
         };
 
-        // 📗 Updated Toast Notification Component (Premium Capsule Style)
+        // Component: Toast (Premium Capsule Style)
         const Toast = ({ message, type = 'success', onClose }) => {
             const [isExiting, setIsExiting] = useState(false);
-
             useEffect(() => {
-                const autoClose = setTimeout(() => {
-                    handleClose();
-                }, 3000);
+                const autoClose = setTimeout(() => setIsExiting(true), 3000);
                 return () => clearTimeout(autoClose);
             }, []);
-
-            const handleClose = () => {
-                setIsExiting(true);
-                setTimeout(onClose, 300); 
-            };
+            useEffect(() => {
+                if (isExiting) {
+                    const timer = setTimeout(onClose, 300);
+                    return () => clearTimeout(timer);
+                }
+            }, [isExiting, onClose]);
 
             const styles = {
-                success: "border-green-500/30 shadow-green-500/20 text-green-700 bg-white/90",
-                error: "border-red-500/30 shadow-red-500/20 text-red-700 bg-white/90",
-                info: "border-indigo-500/30 shadow-indigo-500/20 text-indigo-700 bg-white/90"
-            };
-
-            const icons = {
-                success: "check-circle",
-                error: "alert-circle",
-                info: "info"
+                success: "border-green-500/30 text-green-700 bg-white/90",
+                error: "border-red-500/30 text-red-700 bg-white/90",
+                info: "border-indigo-500/30 text-indigo-700 bg-white/90"
             };
 
             return (
                 <div className={`fixed top-8 left-0 right-0 z-[300] flex justify-center pointer-events-none px-4 ${isExiting ? 'animate-toast-out' : 'animate-toast-in'}`}>
                     <div className={`pointer-events-auto flex items-center gap-3 px-8 py-3.5 rounded-full backdrop-blur-2xl border shadow-2xl ${styles[type]}`}>
                         <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-50' : type === 'error' ? 'bg-red-50' : 'bg-indigo-50'}`}>
-                            <Icon name={icons[type]} className="w-4.5 h-4.5" />
+                            <Icon name={type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'} className="w-4.5 h-4.5" />
                         </div>
-                        <span className="text-sm font-black tracking-tight whitespace-nowrap">{message}</span>
-                        <button onClick={handleClose} className="ml-4 p-1 hover:bg-slate-100 rounded-full transition-colors shrink-0">
-                            <Icon name="x" className="w-3.5 h-3.5 opacity-40" />
-                        </button>
+                        <span className="text-sm font-black tracking-tight">{message}</span>
                     </div>
                 </div>
             );
         };
 
-        // Reusable Confirmation Modal
+        // Component: Confirmation Modal
         const ConfirmPopup = ({ isOpen, title, message, onConfirm, onCancel, confirmText = "ยืนยัน", cancelText = "ยกเลิก", type = "info" }) => {
             if (!isOpen) return null;
             const colors = {
@@ -126,20 +117,19 @@
                 info: "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100",
                 warning: "bg-amber-500 hover:bg-amber-600 shadow-amber-100"
             };
-
             return (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 modal-overlay animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 space-y-6 animate-in zoom-in-95 duration-200 text-center border border-white/50">
+                    <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 space-y-6 animate-in zoom-in-95 text-center border border-white/50">
                         <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-2 ${type === 'danger' ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-500'}`}>
                             <Icon name={type === 'danger' ? 'alert-triangle' : 'help-circle'} className="w-8 h-8" />
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-slate-800 tracking-tight">{title}</h3>
-                            <p className="text-slate-400 text-sm mt-2 leading-relaxed">{message}</p>
+                            <p className="text-slate-400 text-sm mt-2 leading-relaxed font-bold">{message}</p>
                         </div>
                         <div className="flex gap-3">
-                            <button onClick={onCancel} className="flex-1 bg-slate-100 text-slate-500 font-bold py-3.5 rounded-2xl hover:bg-slate-200 transition-all"> {cancelText} </button>
-                            <button onClick={onConfirm} className={`flex-1 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-all active:scale-95 ${colors[type]}`}> {confirmText} </button>
+                            <button onClick={onCancel} className="flex-1 bg-slate-100 text-slate-500 font-bold py-3.5 rounded-2xl hover:bg-slate-200"> {cancelText} </button>
+                            <button onClick={onConfirm} className={`flex-1 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-all active:scale-95 font-bold ${colors[type]}`}> {confirmText} </button>
                         </div>
                     </div>
                 </div>
@@ -158,6 +148,7 @@
         };
 
         const App = () => {
+            // State: User & Data
             const [user, setUser] = useState(null);
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [currentUserData, setCurrentUserData] = useState(null);
@@ -167,13 +158,18 @@
             const [projects, setProjects] = useState([]); 
             const [tasks, setTasks] = useState([]);
             const [allAdmins, setAllAdmins] = useState([]);
-            const [appSettings, setAppSettings] = useState({ logoUrl: '', siteName: 'Autoform Pro', mainAdminPass: '' });
+            const [financeRecords, setFinanceRecords] = useState([]);
+            const [appSettings, setAppSettings] = useState({ logoUrl: '', siteName: 'Autoform Pro', mainAdminPass: '', mainAdminUser: MAIN_ADMIN_DEFAULT_USER });
             
+            // State: UI
             const [activeProjectId, setActiveProjectId] = useState(null);
             const [isAddingProject, setIsAddingProject] = useState(false);
             const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
             const [isSettingInitialPass, setIsSettingInitialPass] = useState(false);
+            const [isFinanceOpen, setIsFinanceOpen] = useState(false);
+            const [editingAdminId, setEditingAdminId] = useState(null);
             
+            // State: Inputs
             const [inputUrl, setInputUrl] = useState('');
             const [inputHtml, setInputHtml] = useState('');
             const [inputCustomName, setInputCustomName] = useState('');
@@ -184,51 +180,32 @@
             const [currentTime, setCurrentTime] = useState(new Date());
             const [selectedTask, setSelectedTask] = useState(null);
 
+            const [financeForm, setFinanceForm] = useState({ type: 'income', amount: '', note: '' });
             const [toastState, setToastState] = useState({ show: false, message: '', type: 'success' });
+            const showToast = (message, type = 'success') => setToastState({ show: true, message, type });
 
-            const showToast = (message, type = 'success') => {
-                setToastState({ show: true, message, type });
-            };
-
-            const [newAdminForm, setNewAdminForm] = useState({
+            const [adminForm, setAdminForm] = useState({
                 username: '', password: '',
-                permissions: { 
-                    canManageProjects: true, 
-                    canManageTasks: true, 
-                    canViewDetails: true, 
-                    canDeleteAnything: false 
-                }
+                permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: false, canDeleteAnything: false }
             });
 
             const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'info' });
 
             const triggerConfirm = (title, message, onConfirm, type = 'info') => {
-                setConfirmState({
-                    isOpen: true, title, message, type,
-                    onConfirm: () => {
-                        onConfirm();
-                        setConfirmState(prev => ({ ...prev, isOpen: false }));
-                    }
-                });
+                setConfirmState({ isOpen: true, title, message, type, onConfirm: () => { onConfirm(); setConfirmState(p => ({ ...p, isOpen: false })); } });
             };
 
-            useEffect(() => {
-                if (appSettings.siteName) {
-                    document.title = appSettings.siteName;
-                }
-            }, [appSettings.siteName]);
+            const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
 
+            // Firebase Logic
             useEffect(() => {
+                if (appSettings.siteName) document.title = appSettings.siteName;
                 if (appSettings.logoUrl) {
-                    let link = document.querySelector("link[rel*='icon']");
-                    if (!link) {
-                        link = document.createElement('link');
-                        link.rel = 'shortcut icon';
-                        document.getElementsByTagName('head')[0].appendChild(link);
-                    }
-                    link.href = appSettings.logoUrl;
+                    let link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+                    link.rel = 'shortcut icon'; link.href = appSettings.logoUrl;
+                    document.getElementsByTagName('head')[0].appendChild(link);
                 }
-            }, [appSettings.logoUrl]);
+            }, [appSettings]);
 
             useEffect(() => {
                 auth.signInAnonymously().catch(console.error);
@@ -249,94 +226,75 @@
                 const unsubAdmins = publicDataRef.collection('admins').onSnapshot(snap => {
                     const admins = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     setAllAdmins(admins);
-                    if (currentUserData && currentUserData.role !== 'main') {
+                    if (currentUserData?.role !== 'main') {
                         const updatedSelf = admins.find(a => a.username === currentUserData.username);
-                        if (updatedSelf && updatedSelf.status === 'blocked') {
-                            alert('บัญชีของคุณถูกระงับการใช้งาน');
-                            setIsLoggedIn(false);
-                        }
+                        if (updatedSelf?.status === 'blocked') { alert('บัญชีถูกระงับการใช้งาน'); setIsLoggedIn(false); }
                     }
                 });
 
-                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => {
-                    setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                });
+                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+                const unsubTasks = publicDataRef.collection('tasks').onSnapshot(snap => setTasks(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), targetTime: doc.data().targetTime?.toDate(), createdAt: doc.data().createdAt?.toDate() }))));
+                const unsubFinance = publicDataRef.collection('finance').onSnapshot(snap => setFinanceRecords(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date?.toDate() }))));
 
-                const unsubTasks = publicDataRef.collection('tasks').onSnapshot(snap => {
-                    setTasks(snap.docs.map(doc => ({ 
-                        id: doc.id, ...doc.data(),
-                        targetTime: doc.data().targetTime?.toDate(),
-                        createdAt: doc.data().createdAt?.toDate()
-                    })));
-                });
-
-                return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); };
-            }, [user, isLoggedIn, currentUserData]);
+                return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); unsubFinance(); };
+            }, [user, isLoggedIn]);
 
             useEffect(() => {
                 const timer = setInterval(() => {
-                    const now = new Date();
-                    setCurrentTime(now);
-                    tasks.forEach(task => {
-                        if (task.status === 'pending' && now >= task.targetTime) submitTask(task);
-                    });
+                    const now = new Date(); setCurrentTime(now);
+                    tasks.forEach(task => { if (task.status === 'pending' && now >= task.targetTime) submitTask(task); });
                 }, 1000);
                 return () => clearInterval(timer);
             }, [tasks]);
 
+            // Handlers
             const handleLogin = async (e) => {
                 if(e) e.preventDefault();
+                const mainUser = appSettings.mainAdminUser || MAIN_ADMIN_DEFAULT_USER;
                 
-                if (loginUser.toLowerCase() === 'admin') {
+                if (loginUser.toLowerCase() === mainUser.toLowerCase()) {
                     if (!appSettings.mainAdminPass) {
-                        setCurrentUserData({ username: 'Admin', role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canViewDetails: true, canDeleteAnything: true }, status: 'active' });
-                        setIsLoggedIn(true);
-                        setIsSettingInitialPass(true);
+                        setCurrentUserData({ username: mainUser, role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: true, canDeleteAnything: true }, status: 'active' });
+                        setIsLoggedIn(true); setIsSettingInitialPass(true);
                     } else if (loginPass === appSettings.mainAdminPass) {
-                        setCurrentUserData({ username: 'Admin', role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canViewDetails: true, canDeleteAnything: true }, status: 'active' });
-                        setIsLoggedIn(true);
-                        showToast('ยินดีต้อนรับ แอดมินหลัก', 'success');
-                    } else {
-                        alert('รหัสผ่านแอดมินหลักไม่ถูกต้อง');
-                    }
+                        setCurrentUserData({ username: mainUser, role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: true, canDeleteAnything: true }, status: 'active' });
+                        setIsLoggedIn(true); showToast('ยินดีต้อนรับ แอดมินหลัก', 'success');
+                    } else alert('รหัสผ่านไม่ถูกต้อง');
                     return;
                 }
 
-                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                const adminSnap = await publicDataRef.collection('admins').get();
-                
-                const foundAdmin = adminSnap.docs.find(doc => {
-                    const d = doc.data();
-                    return d.username === loginUser && d.password === loginPass;
-                });
-
+                const adminSnap = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').get();
+                const foundAdmin = adminSnap.docs.find(doc => doc.data().username === loginUser && doc.data().password === loginPass);
                 if (foundAdmin) {
                     const data = foundAdmin.data();
-                    if (data.status === 'blocked') return alert('บัญชีนี้ถูกระงับการใช้งาน');
-                    setCurrentUserData({ id: foundAdmin.id, ...data, role: 'sub' });
-                    setIsLoggedIn(true);
-                    showToast(`ยินดีต้อนรับคุณ ${data.username}`, 'success');
-                } else {
-                    alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
-                }
+                    if (data.status === 'blocked') return alert('ถูกระงับการใช้งาน');
+                    setCurrentUserData({ id: foundAdmin.id, ...data, role: 'sub' }); setIsLoggedIn(true);
+                    showToast(`ยินดีต้อนรับคุณ ${data.username}`);
+                } else alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
             };
 
-            const setMainAdminPassword = async (pass) => {
-                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                await publicDataRef.set({ settings: { mainAdminPass: pass } }, { merge: true });
-                setIsSettingInitialPass(false);
-                showToast('ตั้งรหัสผ่านสำเร็จ', 'success');
+            const saveAdmin = async (e) => {
+                if(e) e.preventDefault();
+                const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins');
+                
+                if (editingAdminId) {
+                    await colRef.doc(editingAdminId).update(adminForm);
+                    showToast('อัปเดตข้อมูลสำเร็จ');
+                    setEditingAdminId(null);
+                } else {
+                    await colRef.add({ ...adminForm, status: 'active', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    showToast('เพิ่มแอดมินรองสำเร็จ');
+                }
+                setAdminForm({ username: '', password: '', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: false, canDeleteAnything: false } });
             };
 
             const updateSettings = async (newSettings) => {
-                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                await publicDataRef.set({ settings: newSettings }, { merge: true });
-                showToast('บันทึกข้อมูลเว็บไซต์สำเร็จ', 'success');
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').set({ settings: newSettings }, { merge: true });
+                showToast('บันทึกข้อมูลสำเร็จ');
             };
 
             const handleAddProject = async (e) => {
                 if(e) e.preventDefault();
-                if (!currentUserData.permissions.canManageProjects) return;
                 try {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(inputHtml, 'text/html');
@@ -344,68 +302,54 @@
                     if (!scriptWithData) throw new Error('ไม่พบข้อมูลฟอร์ม');
                     const regex = /FB_PUBLIC_LOAD_DATA_ = (.*?);/s;
                     const data = JSON.parse(scriptWithData.innerText.match(regex)[1]);
-                    const formTitle = data[1][8] || "ฟอร์มไม่มีชื่อ";
                     const fields = data[1][1].map(item => {
-                        const label = item[1];
-                        const type = item[3]; 
-                        const entryIdSuffix = item[4]?.[0]?.[0];
-                        const options = item[4]?.[0]?.[1]?.map(opt => opt[0]) || [];
+                        const entryIdSuffix = item[4]?.[0]?.[0]; const options = item[4]?.[0]?.[1]?.map(opt => opt[0]) || [];
                         if (!entryIdSuffix) return null;
-                        return { label, entryId: `entry.${entryIdSuffix}`, options: options.length > 0 ? options : null, type: type === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text') };
+                        return { label: item[1], entryId: `entry.${entryIdSuffix}`, options: options.length > 0 ? options : null, type: item[3] === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text') };
                     }).filter(f => f !== null);
-
-                    const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                    await publicDataRef.collection('projects').add({
-                        title: formTitle, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').add({
+                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username
                     });
-                    setIsAddingProject(false);
-                    setInputHtml(''); setInputUrl(''); setInputCustomName('');
-                    showToast('เพิ่มโปรเจกต์ใหม่เรียบร้อยแล้ว', 'success');
+                    setIsAddingProject(false); setInputHtml(''); setInputUrl(''); setInputCustomName(''); showToast('เพิ่มโปรเจกต์สำเร็จ');
                 } catch (err) { alert(err.message); }
             };
 
-            const addTaskToQueue = async (e) => {
-                if(e) e.preventDefault();
-                if (!activeProjectId || !currentUserData.permissions.canManageTasks) return;
-                const activeProject = projects.find(p => p.id === activeProjectId);
+            const addTaskToQueue = async (isDraft = false) => {
+                if (!activeProject) return;
                 const target = new Date(`${scheduleDate}T${scheduleTime}`);
-                if (isNaN(target.getTime())) return alert('วันเวลาไม่ถูกต้อง');
-                
-                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                await publicDataRef.collection('tasks').add({
-                    projectId: activeProjectId,
-                    projectTitle: activeProject.title,
-                    projectCustomName: activeProject.customName,
-                    taskName: taskName || 'รายการใหม่',
-                    data: fieldValues,
-                    createdAt: firebase.firestore.Timestamp.fromDate(new Date()),
-                    targetTime: firebase.firestore.Timestamp.fromDate(target),
-                    status: 'pending',
-                    url: activeProject.url,
-                    createdBy: currentUserData.username
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').add({
+                    projectId: activeProjectId, projectTitle: activeProject.title, projectCustomName: activeProject.customName, taskName: taskName || 'รายการใหม่', data: fieldValues,
+                    createdAt: firebase.firestore.Timestamp.fromDate(new Date()), targetTime: firebase.firestore.Timestamp.fromDate(target),
+                    status: isDraft ? 'draft' : 'pending', url: activeProject.url, createdBy: currentUserData.username
                 });
-                setTaskName(''); setFieldValues({});
-                showToast('เพิ่มรายการเข้าคิวส่งแล้ว', 'success');
+                setTaskName(''); setFieldValues({}); showToast(isDraft ? 'บันทึกแบบร่างสำเร็จ' : 'เพิ่มรายการเข้าคิวส่งแล้ว');
             };
 
             const submitTask = async (task) => {
-                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                const taskRef = publicDataRef.collection('tasks').doc(task.id);
+                const taskRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id);
                 await taskRef.update({ status: 'sending' });
-                const responseUrl = task.url.replace('/viewform', '/formResponse');
                 const formBody = new URLSearchParams();
-                Object.entries(task.data).forEach(([key, val]) => {
-                    if (Array.isArray(val)) val.forEach(v => formBody.append(key, v));
-                    else formBody.append(key, val);
-                });
+                Object.entries(task.data).forEach(([key, val]) => Array.isArray(val) ? val.forEach(v => formBody.append(key, v)) : formBody.append(key, val));
                 try {
-                    await fetch(responseUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formBody.toString() });
+                    await fetch(task.url.replace('/viewform', '/formResponse'), { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formBody.toString() });
                     await taskRef.update({ status: 'success' });
-                    showToast(`ส่งข้อมูล "${task.taskName}" สำเร็จแล้ว`, 'success');
-                } catch (err) { 
-                    await taskRef.update({ status: 'error' });
-                    showToast(`เกิดข้อผิดพลาดในการส่งข้อมูล "${task.taskName}"`, 'error');
-                }
+                } catch (err) { await taskRef.update({ status: 'error' }); }
+            };
+
+            const addFinanceRecord = async (e) => {
+                if(e) e.preventDefault();
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('finance').add({
+                    ...financeForm, amount: Number(financeForm.amount), date: firebase.firestore.Timestamp.fromDate(new Date()), createdBy: currentUserData.username
+                });
+                setFinanceForm({ type: 'income', amount: '', note: '' }); showToast('บันทึกการเงินสำเร็จ');
+            };
+
+            const getCountdown = (targetDate) => {
+                const diff = targetDate - currentTime; if (diff <= 0) return "00:00:00";
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                return `${h}:${m}:${s}`;
             };
 
             const toggleCheckbox = (entryId, option) => {
@@ -414,17 +358,7 @@
                 setFieldValues({ ...fieldValues, [entryId]: updated });
             };
 
-            const getCountdown = (targetDate) => {
-                const diff = targetDate - currentTime;
-                if (diff <= 0) return "00:00:00";
-                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
-                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-                return `${h}:${m}:${s}`;
-            };
-
-            const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
-
+            // Login UI
             if (!isLoggedIn) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6 relative overflow-hidden">
@@ -435,27 +369,15 @@
                         {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
                         <form onSubmit={handleLogin} className="w-full max-w-md p-10 glass-panel rounded-[48px] shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 text-center">
                             <div className="mb-10">
-                                {appSettings.logoUrl ? (
-                                    <img src={appSettings.logoUrl} className="w-24 h-24 mx-auto mb-6 object-cover rounded-full border-4 border-white shadow-xl" alt="Logo" />
-                                ) : (
-                                    <div className="w-20 h-20 bg-indigo-600 rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl">
-                                        <Icon name="shield-check" className="text-white w-10 h-10" />
-                                    </div>
-                                )}
-                                <h1 className="text-3xl font-black text-slate-800 tracking-tight">{appSettings.siteName}</h1>
+                                {appSettings.logoUrl ? <img src={appSettings.logoUrl} className="w-24 h-24 mx-auto mb-6 object-cover rounded-full border-4 border-white shadow-xl" /> : 
+                                <div className="w-20 h-20 bg-indigo-600 rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl"><Icon name="shield-check" className="text-white w-10 h-10" /></div>}
+                                <h1 className="text-3xl font-black text-slate-800 tracking-tight font-bold">{appSettings.siteName}</h1>
                                 <p className="text-slate-400 text-sm mt-2 font-bold tracking-wide">ยืนยันตัวตนเพื่อเข้าถึงระบบ</p>
                             </div>
                             <div className="space-y-4 text-left">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Username</label>
-                                    <input type="text" value={loginUser} onChange={e => setLoginUser(e.target.value)} placeholder="Username" className="w-full px-5 py-4 bg-slate-100 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
-                                </div>
-                                {(loginUser.toLowerCase() === 'admin' && !appSettings.mainAdminPass) ? null : (
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
-                                        <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} placeholder="Password" className="w-full px-5 py-4 bg-slate-100 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
-                                    </div>
-                                )}
+                                <input type="text" value={loginUser} onChange={e => setLoginUser(e.target.value)} placeholder="Username" className="w-full px-5 py-4 bg-slate-100 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
+                                {(loginUser.toLowerCase() === (appSettings.mainAdminUser || MAIN_ADMIN_DEFAULT_USER).toLowerCase() && !appSettings.mainAdminPass) ? null : 
+                                <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} placeholder="Password" className="w-full px-5 py-4 bg-slate-100 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />}
                                 <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all active:scale-95 mt-4">เข้าสู่ระบบ</button>
                             </div>
                         </form>
@@ -463,82 +385,53 @@
                 );
             }
 
+            // Dashboard
             return (
-                <div className="min-h-screen px-4 pb-20">
-                    {toastState.show && (
-                        <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />
-                    )}
-
-                    <ConfirmPopup 
-                        isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} 
-                        onConfirm={confirmState.onConfirm} 
-                        onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} 
-                        type={confirmState.type}
-                    />
+                <div className="min-h-screen px-4 pb-20 font-bold">
+                    {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
+                    <ConfirmPopup isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} type={confirmState.type} />
 
                     {isSettingInitialPass && (
                         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 modal-overlay">
                             <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 text-center space-y-6 animate-in zoom-in-95">
                                 <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto"><Icon name="key" /></div>
-                                <div>
-                                    <h2 className="text-2xl font-black">ตั้งรหัสผ่านแอดมินหลัก</h2>
-                                    <p className="text-slate-400 text-sm mt-2">สำหรับการใช้งานในครั้งถัดไป</p>
-                                </div>
+                                <h2 className="text-2xl font-black">ตั้งรหัสผ่านแอดมินหลัก</h2>
                                 <input type="password" id="initPassInput" placeholder="กำหนดรหัสผ่านใหม่" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" />
-                                <button onClick={() => setMainAdminPassword(document.getElementById('initPassInput').value)} className="w-full bg-indigo-600 text-white font-black py-3.5 rounded-2xl"> บันทึกรหัสผ่าน </button>
+                                <button onClick={() => setMainAdminPassword(document.getElementById('initPassInput').value)} className="w-full bg-indigo-600 text-white font-black py-3.5 rounded-2xl">บันทึก</button>
                             </div>
                         </div>
                     )}
 
-                    <div className="max-w-6xl mx-auto pt-8 text-center sm:text-left">
+                    <div className="max-w-6xl mx-auto pt-8">
                         <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
                             <div className="flex items-center gap-5">
-                                {appSettings.logoUrl ? (
-                                    <img src={appSettings.logoUrl} className="w-16 h-16 object-cover rounded-full shadow-lg border-2 border-white" alt="Logo" />
-                                ) : (
-                                    <div className="p-4 bg-indigo-600 rounded-full shadow-xl shadow-indigo-100"><Icon name="zap" className="text-white w-6 h-6" /></div>
-                                )}
+                                {appSettings.logoUrl ? <img src={appSettings.logoUrl} className="w-16 h-16 object-cover rounded-full shadow-lg border-2 border-white" /> : <div className="p-4 bg-indigo-600 rounded-full shadow-xl shadow-indigo-100"><Icon name="zap" className="text-white w-6 h-6" /></div>}
                                 <div>
-                                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">{appSettings.siteName}</h1>
-                                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
-                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest ${currentUserData.role === 'main' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-600'}`}>
-                                            {currentUserData.role === 'main' ? 'แอดมินหลัก' : 'แอดมินรอง'}
-                                        </span>
-                                        <span className="text-[10px] font-mono text-slate-400 font-bold">{currentTime.toLocaleTimeString('th-TH')}</span>
-                                    </div>
+                                    <h1 className="text-2xl font-black text-slate-800 tracking-tight font-bold">{appSettings.siteName}</h1>
+                                    <span className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest">{currentUserData?.role === 'main' ? 'แอดมินหลัก' : 'แอดมินรอง'} • {currentTime.toLocaleTimeString('th-TH')}</span>
                                 </div>
                             </div>
-                            
                             <div className="flex items-center gap-3">
-                                {currentUserData.role === 'main' && (
-                                    <button onClick={() => setIsAdminPanelOpen(true)} className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm">
-                                        <Icon name="settings" /> ตั้งค่าระบบ
-                                    </button>
-                                )}
-                                {currentUserData.permissions.canManageProjects && (
-                                    <button onClick={() => setIsAddingProject(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-all">
-                                        <Icon name="plus" /> โปรเจกต์ใหม่
-                                    </button>
-                                )}
-                                <button onClick={() => triggerConfirm("ออกจากระบบ", "คุณต้องการออกจากระบบ?", () => { setIsLoggedIn(false); showToast('ออกจากระบบแล้ว', 'info'); })} className="p-2.5 bg-white text-red-500 rounded-xl hover:bg-red-50 border border-red-100 shadow-sm"><Icon name="power" className="w-6 h-6" /></button>
+                                {currentUserData?.permissions?.canManageFinance && <button onClick={() => setIsFinanceOpen(true)} className="bg-white border border-slate-200 text-green-600 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-green-50 shadow-sm"><Icon name="dollar-sign" /> การเงิน</button>}
+                                {currentUserData?.role === 'main' && <button onClick={() => setIsAdminPanelOpen(true)} className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 shadow-sm"><Icon name="settings" /> ตั้งค่าระบบ</button>}
+                                {currentUserData?.permissions?.canManageProjects && <button onClick={() => setIsAddingProject(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95"><Icon name="plus" /> โปรเจกต์ใหม่</button>}
+                                <button onClick={() => triggerConfirm("ออกจากระบบ", "ยืนยันการออกจากระบบ?", () => setIsLoggedIn(false))} className="p-2.5 bg-white text-red-500 rounded-xl hover:bg-red-50 border border-red-100"><Icon name="power" className="w-6 h-6" /></button>
                             </div>
                         </div>
 
                         <div className="grid lg:grid-cols-12 gap-8">
                             <div className="lg:col-span-3 space-y-3">
-                                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] px-2">รายชื่อโปรเจกต์</h3>
+                                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 font-bold font-bold font-bold font-bold">รายชื่อโปรเจกต์</h3>
                                 {projects.map(p => (
                                     <div key={p.id} className="relative group">
-                                        <button onClick={() => setActiveProjectId(p.id)} className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
+                                        <button onClick={() => setActiveProjectId(p.id)} className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl font-bold' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200 font-bold'}`}>
                                             <div className="flex flex-col truncate pr-4">
-                                                <span className="font-bold truncate text-sm">{p.title}</span>
-                                                <span className={`text-[10px] truncate ${activeProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>{p.customName}</span>
+                                                <span className="font-bold truncate text-sm font-bold font-bold font-bold font-bold">{p.title}</span>
+                                                <span className={`text-[10px] truncate font-bold font-bold font-bold ${activeProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>{p.customName}</span>
                                             </div>
                                             <Icon name="chevron-right" className={`w-4 h-4 shrink-0 transition-all ${activeProjectId === p.id ? 'opacity-100' : 'opacity-0'}`} />
                                         </button>
-                                        {currentUserData.permissions.canDeleteAnything && (
-                                            <button onClick={() => triggerConfirm("ลบโปรเจกต์", `ยืนยันการลบ ${p.title}?`, () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(p.id).delete(); showToast('ลบโปรเจกต์แล้ว', 'info'); }, 'danger')} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded-lg transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>
-                                        )}
+                                        {currentUserData?.permissions?.canDeleteAnything && <button onClick={() => triggerConfirm("ลบโปรเจกต์", `ลบ ${p.title}?`, () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(p.id).delete(); showToast('ลบโปรเจกต์แล้ว'); }, 'danger')} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded-lg"><Icon name="trash-2" className="w-4 h-4" /></button>}
                                     </div>
                                 ))}
                             </div>
@@ -546,24 +439,28 @@
                             <div className="lg:col-span-9 space-y-8 animate-in slide-in-from-bottom-4">
                                 {activeProject ? (
                                     <div className="grid md:grid-cols-2 gap-8">
-                                        <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("เพิ่มรายการ", "ต้องการเพิ่มรายการนี้เข้าคิว?", () => addTaskToQueue(e)) }} className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8 space-y-6">
-                                            <h2 className="font-black text-xl flex items-center gap-3 border-b pb-4"><Icon name="edit-3" className="text-indigo-600"/> สร้างคิวส่ง</h2>
-                                            <div className="space-y-4">
-                                                <input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} placeholder="ชื่อเรียกรายการ (เช่น คุณหญิง)..." className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 font-bold" />
+                                        {/* Create Task Form */}
+                                        <form onSubmit={(e) => { e.preventDefault(); 
+                                            const isManager = currentUserData?.permissions?.canManageTasks;
+                                            triggerConfirm(isManager ? "เพิ่มคิวส่ง" : "บันทึกร่างข้อมูล", isManager ? "ยืนยันการเพิ่มรายการเข้าคิวส่ง?" : "ยืนยันการบันทึกข้อมูลเพื่อรอตรวจสอบ?", () => addTaskToQueue(!isManager));
+                                        }} className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8 space-y-6">
+                                            <h2 className="font-black text-xl flex items-center gap-3 border-b pb-4"><Icon name="edit-3" className="text-indigo-600"/> {currentUserData?.permissions?.canManageTasks ? 'สร้างคิวส่ง' : 'กรอกข้อมูล'}</h2>
+                                            <div className="space-y-4 font-bold font-bold">
+                                                <input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} placeholder="ชื่อเรียก (เช่น จองให้คุณหญิง)..." className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold font-bold font-bold" required />
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold" />
-                                                    <input type="time" step="1" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold" />
+                                                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold font-bold" />
+                                                    <input type="time" step="1" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold font-bold" />
                                                 </div>
-                                                <div className="pt-4 space-y-5 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-left">
+                                                <div className="pt-4 space-y-5 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-left font-bold">
                                                     {activeProject.fields.map((f, i) => (
                                                         <div key={i} className="space-y-2">
-                                                            <label className="text-[11px] font-black text-slate-600 block px-1">{f.label}</label>
+                                                            <label className="text-[11px] font-black text-slate-600 block px-1 font-bold">{f.label}</label>
                                                             {f.type === 'checkbox' ? (
                                                                 <div className="grid grid-cols-1 gap-2">
                                                                     {f.options.map((opt, oi) => (
                                                                         <label key={oi} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30 border border-transparent">
-                                                                            <input type="checkbox" className="w-4 h-4 rounded text-indigo-600" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
-                                                                            <span className="text-xs font-bold text-slate-700">{opt}</span>
+                                                                            <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 font-bold" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
+                                                                            <span className="text-xs font-bold text-slate-700 font-bold">{opt}</span>
                                                                         </label>
                                                                     ))}
                                                                 </div>
@@ -572,118 +469,109 @@
                                                                     <option value="">เลือกคำตอบ</option>
                                                                     {f.options.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                                                 </select>
-                                                            ) : (
-                                                                <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:bg-white transition-all font-bold" />
-                                                            )}
+                                                            ) : <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:bg-white transition-all font-bold font-bold font-bold font-bold font-bold" />}
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
-                                            <button type="submit" disabled={!currentUserData.permissions.canManageTasks} className="w-full bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-indigo-700 active:scale-95 transition-all"> เพิ่มรายการเข้าคิว </button>
+                                            <button type="submit" className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-indigo-700 font-bold font-bold font-bold font-bold"> {currentUserData?.permissions?.canManageTasks ? 'เพิ่มเข้าคิวระบบ' : 'บันทึกข้อมูล (ร่าง)'} </button>
                                         </form>
 
+                                        {/* Monitoring Area */}
                                         <div className="space-y-4">
-                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">History & Monitoring</h3>
-                                            <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar">
-                                                {tasks.filter(t => t.projectId === activeProjectId).sort((a,b) => b.targetTime - a.targetTime).map(task => {
-                                                        const diff = task.targetTime - currentTime;
-                                                        const progress = task.status === 'pending' ? Math.min(100, Math.max(0, (1 - diff / (task.targetTime - task.createdAt)) * 100)) : 100;
-                                                        return (
-                                                            <div key={task.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all cursor-pointer" onClick={() => currentUserData.permissions.canViewDetails && setSelectedTask(task)}>
-                                                                <div className="p-5 flex items-center justify-between">
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${task.status === 'success' ? 'bg-green-100 text-green-600' : task.status === 'error' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                                            <Icon name={task.status === 'pending' ? 'timer' : 'check-circle'} className="w-6 h-6" />
-                                                                        </div>
-                                                                        <div className="text-left">
-                                                                            <div className="font-bold text-slate-700 text-sm truncate max-w-[130px]">{task.taskName}</div>
-                                                                            {task.status === 'pending' && <div className="text-[10px] text-indigo-600 font-black animate-pulse">ส่งใน {Math.floor(diff/1000)}ว.</div>}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="text-[9px] text-slate-400 font-mono text-right leading-tight font-bold">{task.targetTime.toLocaleDateString()}<br/>{task.targetTime.toLocaleTimeString()}</div>
-                                                                        {currentUserData.permissions.canDeleteAnything && (
-                                                                            <button onClick={(e) => { e.stopPropagation(); triggerConfirm("ลบรายการ", "ลบรายการนี้ออกจากคิว?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).delete(); showToast('ลบรายการแล้ว', 'info'); }, 'danger') }} className="p-2 text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100"><Icon name="trash-2" className="w-4 h-4" /></button>
-                                                                        )}
-                                                                    </div>
+                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">สถานะงานในคิว</h3>
+                                            <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar font-bold">
+                                                {tasks.filter(t => t.projectId === activeProjectId).sort((a,b) => b.targetTime - a.targetTime).map(task => (
+                                                    <div key={task.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all cursor-pointer font-bold" onClick={() => currentUserData?.permissions?.canViewDetails && setSelectedTask(task)}>
+                                                        <div className="p-5 flex items-center justify-between font-bold">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${task.status === 'draft' ? 'bg-indigo-50 text-indigo-500' : task.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                                    <Icon name={task.status === 'draft' ? 'file-edit' : task.status === 'pending' ? 'timer' : 'check-circle'} />
                                                                 </div>
-                                                                <div className="h-1.5 w-full bg-slate-50"><div className="h-full progress-line-animate" style={{ width: `${progress}%`, backgroundColor: task.status === 'success' ? '#10b981' : '#6366f1' }}></div></div>
+                                                                <div className="text-left font-bold font-bold font-bold font-bold">
+                                                                    <div className="font-bold text-slate-700 text-sm truncate max-w-[130px] font-bold font-bold font-bold font-bold font-bold font-bold font-bold font-bold font-bold">{task.taskName}</div>
+                                                                    {task.status === 'draft' ? <span className="text-[9px] text-indigo-400 uppercase tracking-widest font-bold font-bold">รอแอดมินอนุมัติ</span> : 
+                                                                     task.status === 'pending' && <div className="text-[10px] text-indigo-600 animate-pulse font-bold font-bold">ส่งใน {getCountdown(task.targetTime)}</div>}
+                                                                </div>
                                                             </div>
-                                                        );
-                                                })}
+                                                            <div className="flex items-center gap-2 font-bold font-bold font-bold font-bold font-bold">
+                                                                <div className="text-[9px] text-slate-400 font-mono text-right leading-tight font-bold font-bold font-bold font-bold font-bold font-bold">{task.targetTime.toLocaleDateString()}<br/>{task.targetTime.toLocaleTimeString()}</div>
+                                                                {task.status === 'draft' && currentUserData?.permissions?.canManageTasks && 
+                                                                    <button onClick={(e) => { e.stopPropagation(); triggerConfirm("อนุมัติส่งคิว", "เปลี่ยนสถานะเป็นคิวส่งจริง?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).update({ status: 'pending' })); }} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"><Icon name="check" className="w-4 h-4" /></button>}
+                                                                {currentUserData?.permissions?.canDeleteAnything && <button onClick={(e) => { e.stopPropagation(); triggerConfirm("ลบรายการ", "ลบ?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).delete(); showToast('ลบแล้ว'); }, 'danger') }} className="p-2 text-slate-200 hover:text-red-500"><Icon name="trash-2" className="w-4 h-4" /></button>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="h-1.5 w-full bg-slate-50"><div className="h-full progress-line-animate" style={{ width: `${task.status === 'pending' ? Math.min(100, Math.max(0, (1 - (task.targetTime - currentTime) / (task.targetTime - task.createdAt)) * 100)) : 100}%`, backgroundColor: task.status === 'success' ? '#10b981' : task.status === 'draft' ? '#6366f1' : '#f59e0b' }}></div></div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="bg-white rounded-[48px] border-4 border-dashed border-slate-100 p-32 text-center text-slate-300">
-                                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6"><Icon name="mouse-pointer-2" className="w-10 h-10 opacity-20" /></div>
-                                        <p className="font-black uppercase tracking-widest">เลือกโปรเจกต์จากด้านซ้าย</p>
-                                    </div>
-                                )}
+                                ) : <div className="bg-white rounded-[48px] border-4 border-dashed border-slate-100 p-32 text-center text-slate-300 font-bold font-bold font-bold font-bold"><Icon name="mouse-pointer-2" className="w-10 h-10 opacity-20 mx-auto mb-6" /><p className="font-black uppercase tracking-widest font-bold">เลือกโปรเจกต์จากด้านซ้าย</p></div>}
                             </div>
                         </div>
                     </div>
 
-                    {/* MODAL SETTINGS */}
+                    {/* MODAL: ADMIN MANAGEMENT */}
                     {isAdminPanelOpen && (
                         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
-                            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 overflow-hidden font-bold">
-                                <div className="flex justify-between items-center border-b p-8 pb-6 bg-white shrink-0">
-                                    <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight font-bold"><Icon name="users" className="text-indigo-600" /> ตั้งค่าระบบและจัดการทีม</h2>
-                                    <button onClick={() => setIsAdminPanelOpen(false)} className="p-2 hover:bg-slate-50 rounded-full transition-all font-bold"><Icon name="x" /></button>
+                            <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden font-bold">
+                                <div className="flex justify-between items-center border-b p-8 bg-white shrink-0">
+                                    <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight font-bold"><Icon name="users" className="text-indigo-600" /> ตั้งค่าระบบ</h2>
+                                    <button onClick={() => setIsAdminPanelOpen(false)} className="p-2 hover:bg-slate-50 rounded-full font-bold font-bold font-bold font-bold"><Icon name="x" /></button>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar">
+                                <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar text-left font-bold font-bold">
                                     <div className="grid md:grid-cols-2 gap-10">
-                                        <div className="space-y-6 text-left">
-                                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("บันทึกการตั้งค่า", "ต้องการบันทึกข้อมูลเว็บไซต์ใหม่?", () => updateSettings(appSettings)) }} className="p-6 bg-slate-50 rounded-3xl space-y-4">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">ข้อมูลเว็บไซต์</h4>
-                                                <div className="space-y-3">
-                                                    <div className="space-y-1 font-bold">
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">ชื่อเว็บไซต์</label>
-                                                        <input type="text" value={appSettings.siteName} onChange={e => setAppSettings({...appSettings, siteName: e.target.value})} placeholder="ชื่อเว็บไซต์ (Site Name)" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none font-bold" required />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">URL โลโก้ (วงกลม)</label>
-                                                        <input type="text" value={appSettings.logoUrl} onChange={e => setAppSettings({...appSettings, logoUrl: e.target.value})} placeholder="URL รูปโลโก้" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none font-bold" />
-                                                    </div>
-                                                    <button type="submit" className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-100">บันทึกข้อมูลเว็บไซต์</button>
+                                        <div className="space-y-6">
+                                            {/* Branding & Self Admin */}
+                                            <div className="p-6 bg-slate-50 rounded-3xl space-y-6">
+                                                <div className="space-y-4">
+                                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">ข้อมูลเว็บไซต์</h4>
+                                                    <input type="text" value={appSettings.siteName} onChange={e => setAppSettings({...appSettings, siteName: e.target.value})} placeholder="ชื่อเว็บไซต์" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none font-bold" />
+                                                    <input type="text" value={appSettings.logoUrl} onChange={e => setAppSettings({...appSettings, logoUrl: e.target.value})} placeholder="URL โลโก้" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none font-bold" />
+                                                    <button onClick={() => updateSettings(appSettings)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold font-bold">บันทึกข้อมูลหน้าเว็บ</button>
                                                 </div>
-                                            </form>
-                                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("เพิ่มแอดมินรอง", `ต้องการเพิ่ม ${newAdminForm.username}?`, () => addSubAdmin(e)) }} className="space-y-4 bg-indigo-50/50 p-6 rounded-3xl">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold font-bold">เพิ่มแอดมินรอง</h4>
-                                                <input type="text" value={newAdminForm.username} onChange={e => setNewAdminForm({...newAdminForm, username: e.target.value})} placeholder="ชื่อผู้ใช้" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none font-bold" required />
-                                                <input type="text" value={newAdminForm.password} onChange={e => setNewAdminForm({...newAdminForm, password: e.target.value})} placeholder="รหัสผ่าน" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none font-bold" required />
-                                                <div className="space-y-2 mt-2 font-bold">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">กำหนดสิทธิ์การใช้งาน</label>
-                                                    <div className="grid grid-cols-2 gap-2 font-bold font-bold">
-                                                        {Object.keys(newAdminForm.permissions).map(perm => (
-                                                            <label key={perm} className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-indigo-100 cursor-pointer hover:bg-indigo-50 transition-colors font-bold">
-                                                                <input type="checkbox" checked={newAdminForm.permissions[perm]} onChange={() => setNewAdminForm({...newAdminForm, permissions: {...newAdminForm.permissions, [perm]: !newAdminForm.permissions[perm]}})} className="w-4 h-4 text-indigo-600 rounded" />
-                                                                <span className="text-[11px] font-bold text-slate-700">{PERMISSION_LABELS[perm]}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
+                                                <div className="pt-6 border-t border-slate-200 space-y-4">
+                                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">แอดมินหลัก</h4>
+                                                    <input type="text" value={appSettings.mainAdminUser} onChange={e => setAppSettings({...appSettings, mainAdminUser: e.target.value})} placeholder="Username แอดมินหลัก" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-bold" />
+                                                    <input type="password" value={appSettings.mainAdminPass} onChange={e => setAppSettings({...appSettings, mainAdminPass: e.target.value})} placeholder="รหัสผ่านใหม่" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-bold" />
+                                                    <button onClick={() => updateSettings(appSettings)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold font-bold">อัปเดตแอดมินหลัก</button>
                                                 </div>
-                                                <button type="submit" className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 shadow-xl transition-all shadow-indigo-100 font-bold"> บันทึกสมาชิกใหม่ </button>
+                                            </div>
+
+                                            {/* Sub-Admin Editor */}
+                                            <form onSubmit={saveAdmin} className="p-6 bg-white border-2 border-slate-100 rounded-3xl space-y-4 font-bold font-bold">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase font-bold font-bold">{editingAdminId ? 'แก้ไขข้อมูลแอดมินรอง' : 'เพิ่มแอดมินรอง'}</h4>
+                                                <input type="text" value={adminForm.username} onChange={e => setAdminForm({...adminForm, username: e.target.value})} placeholder="Username" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-bold" required />
+                                                <input type="text" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} placeholder="Password" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-bold" required />
+                                                <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
+                                                    {Object.keys(adminForm.permissions).map(perm => (
+                                                        <label key={perm} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg cursor-pointer">
+                                                            <input type="checkbox" checked={adminForm.permissions[perm]} onChange={() => setAdminForm({...adminForm, permissions: {...adminForm.permissions, [perm]: !adminForm.permissions[perm]}})} />
+                                                            <span>{PERMISSION_LABELS[perm]}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {editingAdminId && <button type="button" onClick={() => { setEditingAdminId(null); setAdminForm({ username: '', password: '', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: false, canDeleteAnything: false } }); }} className="flex-1 bg-slate-100 py-3 rounded-2xl">ยกเลิก</button>}
+                                                    <button type="submit" className="flex-[2] bg-slate-800 text-white py-3 rounded-2xl font-bold">{editingAdminId ? 'อัปเดตข้อมูล' : 'บันทึกแอดมินรอง'}</button>
+                                                </div>
                                             </form>
                                         </div>
-                                        <div className="space-y-4 font-bold">
-                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold ml-2">รายชื่อแอดมินรอง</h4>
-                                            <div className="space-y-3 font-bold">
+
+                                        <div className="space-y-4">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase ml-2 font-bold font-bold font-bold font-bold">รายชื่อทีมงานทั้งหมด</h4>
+                                            <div className="space-y-3 font-bold font-bold">
                                                 {allAdmins.map(admin => (
-                                                    <div key={admin.id} className={`p-5 rounded-[32px] border flex items-center justify-between ${admin.status === 'blocked' ? 'bg-red-50 border-red-100 opacity-60 font-bold' : 'bg-white border-slate-100 shadow-sm font-bold'}`}>
-                                                        <div className="text-left font-bold font-bold font-bold">
-                                                            <div className="font-black text-sm text-slate-700 font-bold">{admin.username}</div>
-                                                            <div className="text-[9px] font-mono text-slate-400 font-bold uppercase tracking-tighter">รหัส: {admin.password}</div>
-                                                            <div className="flex flex-wrap gap-1 mt-1.5 font-bold">
-                                                                {Object.entries(admin.permissions).map(([k, v]) => v && (
-                                                                    <span key={k} className="px-1.5 py-0.5 bg-slate-50 text-slate-400 rounded text-[8px] font-bold border border-slate-100"> {PERMISSION_LABELS[k]} </span>
-                                                                ))}
-                                                            </div>
+                                                    <div key={admin.id} className={`p-5 rounded-3xl border flex items-center justify-between ${admin.status === 'blocked' ? 'bg-red-50/50 opacity-50' : 'bg-white shadow-sm'}`}>
+                                                        <div className="text-left font-bold font-bold font-bold font-bold">
+                                                            <div className="text-sm font-bold">{admin.username}</div>
+                                                            <div className="text-[9px] text-slate-400 font-mono">รหัส: {admin.password}</div>
                                                         </div>
-                                                        <div className="flex gap-1.5 font-bold">
-                                                            <button onClick={() => triggerConfirm("เปลี่ยนสถานะ", "เปลี่ยนสถานะการเข้าถึง?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').doc(admin.id).update({ status: admin.status === 'active' ? 'blocked' : 'active' }); showToast('อัปเดตสถานะแอดมินแล้ว', 'info'); })} title="ระงับ/เปิดใช้งาน" className={`p-2 rounded-xl transition-all ${admin.status === 'active' ? 'bg-amber-50 text-amber-500 font-bold' : 'bg-green-50 text-green-500 font-bold'}`}><Icon name={admin.status === 'active' ? 'slash' : 'check'} className="w-4 h-4" /></button>
-                                                            <button onClick={() => triggerConfirm("ลบแอดมิน", "ต้องการลบอย่างถาวร?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').doc(admin.id).delete(); showToast('ลบแอดมินแล้ว', 'info'); }, 'danger')} title="ลบ" className="p-2 bg-red-50 text-red-400 rounded-xl hover:bg-red-100 transition-all shadow-sm"><Icon name="trash-2" className="w-4 h-4 font-bold" /></button>
+                                                        <div className="flex gap-1">
+                                                            <button onClick={() => { setEditingAdminId(admin.id); setAdminForm({ username: admin.username, password: admin.password, permissions: admin.permissions }); }} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all" title="แก้ไข"><Icon name="edit" className="w-4 h-4" /></button>
+                                                            <button onClick={() => triggerConfirm("สถานะ", "ระงับการเข้าใช้?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').doc(admin.id).update({ status: admin.status==='active'?'blocked':'active' }))} className={`p-2 rounded-xl transition-all ${admin.status==='active'?'text-amber-500':'text-green-500'}`}><Icon name={admin.status==='active'?'slash':'check'} className="w-4 h-4" /></button>
+                                                            <button onClick={() => triggerConfirm("ลบแอดมิน", "ลบสิทธิ์ถาวร?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('admins').doc(admin.id).delete(), 'danger')} className="p-2 text-red-400"><Icon name="trash-2" className="w-4 h-4" /></button>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -695,57 +583,84 @@
                         </div>
                     )}
 
-                    {isAddingProject && (
+                    {/* FINANCE MODAL */}
+                    {isFinanceOpen && (
                         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
-                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("สร้างโปรเจกต์", "สร้างคิวใหม่จากข้อมูลนี้?", () => handleAddProject(e)) }} className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 space-y-8 animate-in zoom-in-95 font-bold">
-                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3 tracking-tight font-bold"><Icon name="plus-circle" className="text-indigo-600" /> เพิ่มโปรเจกต์ Cloud</h2>
-                                <div className="space-y-4 text-left font-bold">
-                                    <div className="space-y-1 font-bold">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">1. ชื่อโปรเจกต์ (ตั้งเอง)</label>
-                                        <input type="text" value={inputCustomName} onChange={e => setInputCustomName(e.target.value)} placeholder="เช่น งานจองคอนโด..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
-                                    </div>
-                                    <div className="space-y-1 font-bold">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">2. ลิงก์ฟอร์ม (/viewform)</label>
-                                        <input type="text" value={inputUrl} onChange={e => setInputUrl(e.target.value)} placeholder="URL หน้าตอบคำถาม" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
-                                    </div>
-                                    <div className="space-y-1 font-bold">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">3. HTML Source Code (Ctrl+U)</label>
-                                        <textarea value={inputHtml} onChange={e => setInputHtml(e.target.value)} placeholder="วาง HTML Source Code..." className="w-full h-32 px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-mono text-[10px] resize-none font-bold" required />
+                            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden font-bold">
+                                <div className="flex justify-between items-center border-b p-8 bg-white shrink-0">
+                                    <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight font-bold"><Icon name="dollar-sign" className="text-green-600" /> การเงิน</h2>
+                                    <button onClick={() => setIsFinanceOpen(false)} className="p-2 hover:bg-slate-50 rounded-full font-bold font-bold font-bold"><Icon name="x" /></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar font-bold">
+                                    <div className="grid md:grid-cols-2 gap-10">
+                                        <form onSubmit={addFinanceRecord} className="space-y-6 text-left">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button type="button" onClick={() => setFinanceForm({...financeForm, type: 'income'})} className={`py-4 rounded-3xl font-black ${financeForm.type === 'income' ? 'bg-green-600 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}> รายรับ </button>
+                                                <button type="button" onClick={() => setFinanceForm({...financeForm, type: 'expense'})} className={`py-4 rounded-3xl font-black ${financeForm.type === 'expense' ? 'bg-red-600 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}> รายจ่าย </button>
+                                            </div>
+                                            <input type="number" value={financeForm.amount} onChange={e => setFinanceForm({...financeForm, amount: e.target.value})} placeholder="จำนวนเงิน (บาท)" className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-black text-2xl font-bold" required />
+                                            <textarea value={financeForm.note} onChange={e => setFinanceForm({...financeForm, note: e.target.value})} placeholder="หมายเหตุ..." className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none h-32 font-bold font-bold" required />
+                                            <button type="submit" className={`w-full text-white font-black py-4 rounded-3xl shadow-xl ${financeForm.type === 'income' ? 'bg-green-600' : 'bg-red-600'}`}>บันทึก</button>
+                                        </form>
+                                        <div className="space-y-4">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase font-bold font-bold font-bold font-bold font-bold">ประวัติรายการล่าสุด</h4>
+                                            {financeRecords.sort((a,b) => b.date - a.date).slice(0, 10).map(rec => (
+                                                <div key={rec.id} className="p-4 bg-slate-50 rounded-3xl flex justify-between items-center group font-bold">
+                                                    <div className="text-left font-bold font-bold">
+                                                        <div className="text-[8px] text-slate-400 uppercase">{rec.date?.toLocaleDateString('th-TH')} • {rec.createdBy}</div>
+                                                        <div className="text-sm font-black text-slate-700">{rec.note}</div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-lg font-black ${rec.type === 'income' ? 'text-green-600' : 'text-red-600'}`}> {rec.type === 'income' ? '+' : '-'} {rec.amount.toLocaleString()} </span>
+                                                        {currentUserData?.permissions?.canDeleteAnything && <button onClick={() => triggerConfirm("ลบ?", "ลบข้อมูลการเงินนี้?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('finance').doc(rec.id).delete(), 'danger')} className="opacity-0 group-hover:opacity-100 text-red-300 p-1"><Icon name="x" className="w-3.5 h-3.5" /></button>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-3 pt-2 font-bold">
-                                    <button type="button" onClick={() => setIsAddingProject(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl transition-all">ยกเลิก</button>
-                                    <button type="submit" className="flex-[2] bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-indigo-700 active:scale-95 shadow-indigo-100 font-bold">สร้างโปรเจกต์ใหม่</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL: ADD PROJECT */}
+                    {isAddingProject && (
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("สร้างโปรเจกต์", "สร้างฐานข้อมูลจากฟอร์มนี้?", () => handleAddProject(e)); }} className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 space-y-6 font-bold font-bold">
+                                <h2 className="text-2xl font-black font-bold font-bold font-bold"><Icon name="plus-circle" className="text-indigo-600" /> เพิ่มโปรเจกต์ Cloud</h2>
+                                <div className="space-y-4 text-left font-bold font-bold font-bold font-bold font-bold">
+                                    <input type="text" value={inputCustomName} onChange={e => setInputCustomName(e.target.value)} placeholder="ชื่อโปรเจกต์ (ตั้งเอง)" className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold font-bold" required />
+                                    <input type="text" value={inputUrl} onChange={e => setInputUrl(e.target.value)} placeholder="URL ลิงก์ฟอร์ม" className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold font-bold font-bold font-bold" required />
+                                    <textarea value={inputHtml} onChange={e => setInputHtml(e.target.value)} placeholder="HTML Source Code (Ctrl+U)" className="w-full h-32 px-5 py-4 bg-slate-50 rounded-2xl outline-none font-mono text-[10px] font-bold font-bold font-bold font-bold" required />
+                                </div>
+                                <div className="flex gap-3 font-bold font-bold font-bold font-bold">
+                                    <button type="button" onClick={() => setIsAddingProject(false)} className="flex-1 bg-slate-100 py-4 rounded-2xl font-bold font-bold font-bold">ยกเลิก</button>
+                                    <button type="submit" className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl shadow-xl font-bold font-bold font-bold font-bold">สร้างโปรเจกต์</button>
                                 </div>
                             </form>
                         </div>
                     )}
 
+                    {/* MODAL: VIEW TASK DATA */}
                     {selectedTask && (
-                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in font-bold">
-                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 overflow-hidden font-bold" onClick={e => e.stopPropagation()}>
-                                <div className="flex justify-between items-center border-b p-8 pb-6 bg-white shrink-0 font-bold">
-                                    <div className="flex flex-col truncate pr-4 text-left font-bold">
-                                        <h2 className="text-xl font-black text-slate-800 tracking-tight truncate font-bold font-bold">{selectedTask.taskName}</h2>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-bold">{selectedTask.projectCustomName}</span>
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden font-bold" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b p-8 bg-white shrink-0">
+                                    <div className="text-left font-bold font-bold font-bold font-bold">
+                                        <h2 className="text-xl font-bold font-bold font-bold">{selectedTask.taskName}</h2>
+                                        <span className="text-[10px] text-slate-400 uppercase font-bold font-bold font-bold">{selectedTask.projectCustomName}</span>
                                     </div>
-                                    <button onClick={() => setSelectedTask(null)} className="p-3 hover:bg-slate-50 rounded-full transition-all text-slate-300 hover:text-slate-500 font-bold"><Icon name="x" /></button>
+                                    <button onClick={() => setSelectedTask(null)} className="p-3 hover:bg-slate-50 rounded-full font-bold font-bold font-bold font-bold"><Icon name="x" /></button>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar text-left font-bold">
-                                    <div className="space-y-3 font-bold font-bold">
-                                        {projects.find(p => p.id === selectedTask.projectId)?.fields.map((f, i) => (
-                                            <div key={i} className="bg-slate-50/50 p-4 rounded-3xl border border-slate-50 font-bold">
-                                                <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 font-bold">{f.label}</div>
-                                                <div className="text-sm font-bold text-slate-700 font-bold">
-                                                    {Array.isArray(selectedTask.data[f.entryId]) ? selectedTask.data[f.entryId].join(', ') : (selectedTask.data[f.entryId] || '(ว่าง)')}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar text-left font-bold font-bold">
+                                    {projects.find(p => p.id === selectedTask.projectId)?.fields.map((f, i) => (
+                                        <div key={i} className="bg-slate-50/50 p-4 rounded-3xl border border-slate-50 mb-3 font-bold font-bold font-bold">
+                                            <div className="text-[10px] text-slate-400 font-bold font-bold font-bold">{f.label}</div>
+                                            <div className="text-sm font-black text-slate-700 font-bold font-bold font-bold font-bold">{Array.isArray(selectedTask.data[f.entryId]) ? selectedTask.data[f.entryId].join(', ') : (selectedTask.data[f.entryId] || '(ว่าง)')}</div>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="text-[9px] text-center text-slate-300 font-bold uppercase tracking-widest p-6 border-t border-slate-50 shrink-0 font-bold font-bold font-bold">
-                                    <span>สร้างโดย {selectedTask.createdBy} • กำหนดส่ง {selectedTask.targetTime.toLocaleString()}</span>
-                                </div>
+                                <div className="text-[9px] text-center text-slate-300 font-bold uppercase p-6 border-t font-bold font-bold font-bold font-bold">โดย {selectedTask.createdBy} • ส่ง {selectedTask.targetTime.toLocaleString()}</div>
                             </div>
                         </div>
                     )}
