@@ -326,6 +326,36 @@
                 return () => clearInterval(timer);
             }, [tasks]);
 
+            // Effect: Global Scroll Lock when ANY modal is open
+            useEffect(() => {
+                const isAnyModalOpen = 
+                    isSettingInitialPass || 
+                    confirmState.isOpen || 
+                    isMenuOpen || 
+                    !!viewStatModal || 
+                    isAdminPanelOpen || 
+                    isEditingAdminModalOpen || 
+                    isClearDataOpen || 
+                    isFinanceOpen || 
+                    isAddingProject || 
+                    !!selectedTask;
+
+                if (isAnyModalOpen) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = 'auto';
+                }
+
+                // Cleanup
+                return () => {
+                    document.body.style.overflow = 'auto';
+                };
+            }, [
+                isSettingInitialPass, confirmState.isOpen, isMenuOpen, viewStatModal, 
+                isAdminPanelOpen, isEditingAdminModalOpen, isClearDataOpen, 
+                isFinanceOpen, isAddingProject, selectedTask
+            ]);
+
             // Handlers
             const handleLogin = async (e) => {
                 if(e) e.preventDefault();
@@ -506,7 +536,7 @@
 
             // Dashboard & Workspace App Container
             return (
-                <div className="min-h-screen px-4 pb-20 font-bold">
+                <div className="min-h-screen px-4 pb-20 font-bold relative">
                     {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
                     <ConfirmPopup isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} type={confirmState.type} />
 
