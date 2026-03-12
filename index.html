@@ -362,6 +362,16 @@
             }, [appSettings]);
 
             useEffect(() => {
+                // Check Session for Auto Login
+                const savedUser = localStorage.getItem('pepstudio_user');
+                if (savedUser) {
+                    try {
+                        const parsedUser = JSON.parse(savedUser);
+                        setCurrentUserData(parsedUser);
+                        setIsLoggedIn(true);
+                    } catch(e) {}
+                }
+
                 auth.signInAnonymously().catch(console.error);
                 const unsubscribe = auth.onAuthStateChanged(setUser);
                 return () => unsubscribe();
@@ -382,7 +392,11 @@
                     setAllAdmins(admins);
                     if (currentUserData?.role !== 'main') {
                         const updatedSelf = admins.find(a => a.username === currentUserData.username);
-                        if (updatedSelf?.status === 'blocked') { alert('บัญชีถูกระงับการใช้งาน'); setIsLoggedIn(false); }
+                        if (updatedSelf?.status === 'blocked') { 
+                            alert('บัญชีถูกระงับการใช้งาน'); 
+                            localStorage.removeItem('pepstudio_user');
+                            setIsLoggedIn(false); 
+                        }
                     }
                 });
 
@@ -391,7 +405,7 @@
                 const unsubFinance = publicDataRef.collection('finance').onSnapshot(snap => setFinanceRecords(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date?.toDate() }))));
 
                 return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); unsubFinance(); };
-            }, [user, isLoggedIn, clientFormId]);
+            }, [user, isLoggedIn, clientFormId, currentUserData?.role, currentUserData?.username]);
 
             useEffect(() => {
                 if(clientFormId) return;
@@ -421,10 +435,14 @@
                 
                 if (loginUser.toLowerCase() === mainUser.toLowerCase()) {
                     if (!appSettings.mainAdminPass) {
-                        setCurrentUserData({ username: mainUser, role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: true, canDeleteAnything: true }, status: 'active' });
+                        const userData = { username: mainUser, role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: true, canDeleteAnything: true }, status: 'active' };
+                        setCurrentUserData(userData);
+                        localStorage.setItem('pepstudio_user', JSON.stringify(userData));
                         setIsLoggedIn(true); setIsSettingInitialPass(true);
                     } else if (loginPass === appSettings.mainAdminPass) {
-                        setCurrentUserData({ username: mainUser, role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: true, canDeleteAnything: true }, status: 'active' });
+                        const userData = { username: mainUser, role: 'main', permissions: { canManageProjects: true, canManageTasks: true, canFillDrafts: true, canViewDetails: true, canManageFinance: true, canDeleteAnything: true }, status: 'active' };
+                        setCurrentUserData(userData);
+                        localStorage.setItem('pepstudio_user', JSON.stringify(userData));
                         setIsLoggedIn(true); showToast('ยินดีต้อนรับ แอดมินหลัก', 'success');
                     } else alert('รหัสผ่านไม่ถูกต้อง');
                     return;
@@ -435,7 +453,10 @@
                 if (foundAdmin) {
                     const data = foundAdmin.data();
                     if (data.status === 'blocked') return alert('ถูกระงับการใช้งาน');
-                    setCurrentUserData({ id: foundAdmin.id, ...data, role: 'sub' }); setIsLoggedIn(true);
+                    const userData = { id: foundAdmin.id, ...data, role: 'sub' };
+                    setCurrentUserData(userData);
+                    localStorage.setItem('pepstudio_user', JSON.stringify(userData));
+                    setIsLoggedIn(true);
                     showToast(`ยินดีต้อนรับคุณ ${data.username}`);
                 } else alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
             };
@@ -767,7 +788,7 @@
 
                                         <div className="h-px w-full bg-slate-100 my-2"></div>
 
-                                        <button onClick={() => { triggerConfirm("ออกจากระบบ", "ยืนยันการออกจากระบบ?", () => setIsLoggedIn(false)); setIsMenuOpen(false); }} className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl font-black text-red-500 hover:bg-red-50 transition-all text-left">
+                                        <button onClick={() => { triggerConfirm("ออกจากระบบ", "ยืนยันการออกจากระบบ?", () => { localStorage.removeItem('pepstudio_user'); setIsLoggedIn(false); }); setIsMenuOpen(false); }} className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl font-black text-red-500 hover:bg-red-50 transition-all text-left">
                                             <Icon name="power" className="w-5 h-5"/> ออกจากระบบ
                                         </button>
                                     </div>
@@ -835,7 +856,7 @@
 
                         {/* --- WORKSPACE TAB --- */}
                         {activeTab === 'workspace' && (
-                            <div className="grid lg:grid-cols-12 gap-8 animate-in slide-in-from-right-8">
+                            <div className="grid lg:grid-cols-12 gap-8 items-start animate-in slide-in-from-right-8">
                                 <div className="lg:col-span-3 space-y-3">
                                     <div className="flex justify-between items-center px-2">
                                         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">รายชื่อโปรเจกต์</h3>
@@ -864,7 +885,7 @@
 
                                 <div className="lg:col-span-9 space-y-8">
                                     {activeProject ? (
-                                        <div className="grid md:grid-cols-2 gap-8">
+                                        <div className="grid md:grid-cols-2 gap-8 items-start">
                                             {/* Create Task Form */}
                                             <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8">
                                                 {editingTaskId && (
