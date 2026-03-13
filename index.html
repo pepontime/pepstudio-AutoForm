@@ -33,17 +33,17 @@
         /* Glassmorphism for toast */
         .glass-toast { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
         
-        /* Loading Dots Animation */
-        @keyframes dot-blink {
-            0% { content: ''; }
-            33% { content: '.'; }
-            66% { content: '..'; }
-            100% { content: '...'; }
+        /* New Loading Animations */
+        @keyframes spin-cw {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
-        .loading-dots::after {
-            content: '';
-            animation: dot-blink 1.5s infinite steps(1);
+        @keyframes spin-ccw {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(-360deg); }
         }
+        .animate-spin-cw { animation: spin-cw 2s linear infinite; }
+        .animate-spin-ccw { animation: spin-ccw 3s linear infinite; }
 
         /* Toast Animations */
         @keyframes slideInDown {
@@ -797,7 +797,7 @@
                     }).filter(f => f !== null);
                     
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').add({
-                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", description: formDescription, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username, createdAt: firebase.firestore.Timestamp.fromDate(new Date())
+                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", description: formDescription, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username, createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     
                     setIsAddingProject(false); setInputHtml(''); setInputUrl(''); setInputCustomName(''); showToast('เพิ่มโปรเจกต์สำเร็จ');
@@ -925,15 +925,24 @@
                 return (
                     <div className="min-h-screen flex flex-col items-center justify-center bg-white relative overflow-hidden font-bold">
                         <div className="flex flex-col items-center justify-center z-10 w-full animate-in fade-in zoom-in duration-300">
-                            <div className="relative mb-4">
-                                {displayLogo ? (
-                                    <img src={displayLogo} className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-full shadow-lg border-2 border-slate-100" />
-                                ) : (
-                                    <div className="w-24 h-24 sm:w-28 sm:h-28 bg-white rounded-full shadow-lg border-2 border-slate-100"></div>
-                                )}
+                            {/* Animated Logo Container */}
+                            <div className="relative mb-8">
+                                {/* Outer spinning ring (Clockwise) */}
+                                <div className="absolute -inset-4 rounded-full border-[3px] border-indigo-50 border-t-indigo-500 animate-spin-cw"></div>
+                                
+                                {/* Logo (Counter-Clockwise) */}
+                                <div className="animate-spin-ccw relative z-10">
+                                    {displayLogo ? (
+                                        <img src={displayLogo} className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-full shadow-lg border-2 border-white" />
+                                    ) : (
+                                        <div className="w-24 h-24 sm:w-28 sm:h-28 bg-white rounded-full shadow-lg border-2 border-slate-50 flex items-center justify-center text-indigo-500">
+                                            <Icon name="loader-2" className="w-10 h-10" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <div className="text-indigo-500 font-bold tracking-widest text-xs uppercase mt-2">
-                                กำลังโหลดข้อมูล<span className="loading-dots inline-block w-4 text-left"></span>
+                            <div className="text-indigo-500 font-black tracking-widest text-xs uppercase">
+                                กำลังโหลดข้อมูล
                             </div>
                         </div>
                     </div>
@@ -1081,7 +1090,7 @@
                     {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
                     <ConfirmPopup isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} type={confirmState.type} />
 
-                    {/* Edit Project Modal (ปรับปรุงให้แสดงรายละเอียดผู้สร้าง) */}
+                    {/* Edit Project Modal */}
                     {editProjectData && (
                         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
                             <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-4 border-slate-50">
@@ -1108,13 +1117,14 @@
                                         <input type="text" value={editProjectData.url} onChange={e => setEditProjectData({...editProjectData, url: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
                                     </div>
                                     
-                                    <div className="pt-4 border-t flex flex-wrap gap-3 mt-6">
+                                    <div className="pt-4 border-t flex flex-row gap-3 mt-6">
                                         {currentUserData?.permissions?.canDeleteAnything && (
-                                            <button type="button" onClick={handleDeleteProject} className="flex-1 bg-red-50 text-red-600 py-3.5 rounded-2xl font-black hover:bg-red-100 transition-all flex items-center justify-center gap-2">
-                                                <Icon name="trash-2" className="w-4 h-4"/> ลบโปรเจกต์
+                                            <button type="button" onClick={handleDeleteProject} className="shrink-0 sm:flex-1 bg-red-50 text-red-600 p-3.5 sm:py-3.5 sm:px-4 rounded-2xl font-black hover:bg-red-100 transition-all flex items-center justify-center gap-2">
+                                                <Icon name="trash-2" className="w-5 h-5 sm:w-4 sm:h-4"/> 
+                                                <span className="hidden sm:inline">ลบโปรเจกต์</span>
                                             </button>
                                         )}
-                                        <button type="submit" className="flex-[2] bg-indigo-600 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95">
+                                        <button type="submit" className="flex-1 sm:flex-[2] bg-indigo-600 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95">
                                             บันทึกการแก้ไข
                                         </button>
                                     </div>
@@ -1967,7 +1977,7 @@
                                                 <button onClick={() => {
                                                     const link = `${window.location.origin}${window.location.pathname}?client_form=${selectedTask.id}`;
                                                     copyToClipboard(link, () => showToast('คัดลอกลิงก์แล้ว'));
-                                                }} className="flex-1 bg-emerald-50 text-emerald-600 font-black hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2 p-4 sm:p-5 border-r border-white">
+                                                }} className="flex-1 bg-emerald-50 text-emerald-600 font-black hover:bg-emerald-600 hover:white transition-all flex items-center justify-center gap-2 p-4 sm:p-5 border-r border-white">
                                                     <Icon name="copy" className="w-4 h-4"/> คัดลอกลิงก์ใหม่
                                                 </button>
                                             )}
@@ -1981,7 +1991,7 @@
                                                     setEditingTaskId(selectedTask.id);
                                                     setActiveProjectId(selectedTask.projectId);
                                                     setSelectedTask(null);
-                                                }} className="flex-1 bg-indigo-50 text-indigo-600 font-black hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2 p-4 sm:p-5">
+                                                }} className="flex-1 bg-indigo-50 text-indigo-600 font-black hover:bg-indigo-600 hover:white transition-all flex items-center justify-center gap-2 p-4 sm:p-5">
                                                     <Icon name="edit" className="w-4 h-4"/> ตรวจสอบ / แก้ไข
                                                 </button>
                                             )}
