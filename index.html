@@ -276,12 +276,13 @@
             const [selectedProjectDetail, setSelectedProjectDetail] = useState(null);
             const [editProjectData, setEditProjectData] = useState(null); 
 
-            // State: Inputs (Main Workspace)
+            // State: Inputs & Validation
             const [inputUrl, setInputUrl] = useState('');
             const [inputHtml, setInputHtml] = useState('');
             const [inputCustomName, setInputCustomName] = useState('');
             const [taskName, setTaskName] = useState('');
             const [fieldValues, setFieldValues] = useState({});
+            const [fieldErrors, setFieldErrors] = useState({}); // เก็บสถานะ Error ของแต่ละช่อง
             const [scheduleDate, setScheduleDate] = useState(getLocalDateString());
             const [scheduleTime, setScheduleTime] = useState('00:00:00'); 
             
@@ -297,6 +298,7 @@
             const [modalSortBy, setModalSortBy] = useState('createdAt_desc');
             const [financeSortBy, setFinanceSortBy] = useState('date_desc');
             const [projectDetailSortBy, setProjectDetailSortBy] = useState('createdAt_desc');
+            const [projectSortBy, setProjectSortBy] = useState('createdAt_desc'); // เพิ่มตัวแปรนี้
 
             const [financeForm, setFinanceForm] = useState({ type: 'income', amount: '', note: '', customerName: '' });
             const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -438,6 +440,7 @@
                                 db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(tData.projectId).get().then(pDoc => {
                                     setClientProject({ id: pDoc.id, ...pDoc.data() });
                                     setFieldValues(tData.data || {});
+                                    setFieldErrors({}); // Reset errors
                                     setClientStatus('ready');
                                 });
                             }
@@ -473,15 +476,80 @@
                 return () => { document.body.style.overflow = 'auto'; };
             }, [isSettingInitialPass, confirmState.isOpen, isMenuOpen, viewStatModal, isAdminPanelOpen, isEditingAdminModalOpen, isClearDataOpen, isFinanceOpen, isAddingProject, isFormModalOpen, selectedTask, generatedLink, selectedProjectDetail, editProjectData]);
 
+            // ==========================================
+            // Validation Logic (จำลองกฎจาก Google Form)
+            // ==========================================
+            const validateField = (f, val) => {
+                if (!val || (Array.isArray(val) && val.length === 0) || val.toString().trim() === '') {
+                    return f.required ? 'กรุณากรอกข้อมูลในช่องนี้' : null;
+                }
+                
+                if (f.validation) {
+                    const { type, subType, args, errorMsg } = f.validation;
+                    const strVal = val.toString().trim();
+                    const errMsg = errorMsg || 'รูปแบบข้อมูลไม่ถูกต้อง';
+
+                    if (type === 1) { // 1 = Number
+                        const num = parseFloat(strVal);
+                        const target = args && args.length > 0 ? parseFloat(args[0]) : 0;
+                        if (isNaN(num)) return errorMsg || 'ต้องเป็นตัวเลขเท่านั้น';
+                        if (subType === 1 && !(num > target)) return errMsg; // มากกว่า
+                        if (subType === 2 && !(num >= target)) return errMsg; // มากกว่าหรือเท่ากับ
+                        if (subType === 3 && !(num < target)) return errMsg; // น้อยกว่า
+                        if (subType === 4 && !(num <= target)) return errMsg; // น้อยกว่าหรือเท่ากับ
+                        if (subType === 5 && !(num === target)) return errMsg; // เท่ากับ
+                        if (subType === 6 && !(num !== target)) return errMsg; // ไม่เท่ากับ
+                        if (subType === 9 && args.length > 1 && !(num >= parseFloat(args[0]) && num <= parseFloat(args[1]))) return errMsg; // อยู่ระหว่าง
+                        if (subType === 10 && args.length > 1 && (num >= parseFloat(args[0]) && num <= parseFloat(args[1]))) return errMsg; // ไม่อยู่ระหว่าง
+                    } else if (type === 2) { // 2 = Text
+                        if (subType === 100 && !strVal.includes(args[0])) return errMsg; // มีคำว่า
+                        if (subType === 101 && strVal.includes(args[0])) return errMsg; // ไม่มีคำว่า
+                        if (subType === 102) { // อีเมล
+                            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                            if (!emailRegex.test(strVal)) return errorMsg || 'อีเมลไม่ถูกต้อง';
+                        }
+                        if (subType === 103) { // URL
+                            const urlRegex = /^(http|https):\/\/[^ "]+$/;
+                            if (!urlRegex.test(strVal)) return errorMsg || 'URL ไม่ถูกต้อง';
+                        }
+                    } else if (type === 4) { // 4 = Regex
+                        try {
+                            const regex = new RegExp(args[0]);
+                            if (subType === 299 && !regex.test(strVal)) return errMsg; // มี
+                            if (subType === 298 && !regex.test(strVal)) return errMsg; // ตรงกัน
+                            if (subType === 300 && regex.test(strVal)) return errMsg; // ไม่มี
+                            if (subType === 301 && regex.test(strVal)) return errMsg; // ไม่ตรงกัน
+                        } catch(e) {}
+                    } else if (type === 6) { // 6 = Length
+                        const limit = parseInt(args[0], 10);
+                        if (subType === 202 && strVal.length < limit) return errorMsg || `ต้องมีอย่างน้อย ${limit} ตัวอักษร`;
+                        if (subType === 203 && strVal.length > limit) return errorMsg || `ต้องไม่เกิน ${limit} ตัวอักษร`;
+                    }
+                }
+                return null;
+            };
+
+            const handleValidationBeforeSubmit = (project, values) => {
+                let errors = {};
+                let hasError = false;
+                project.fields.forEach(f => {
+                    const err = validateField(f, values[f.entryId]);
+                    if (err) {
+                        errors[f.entryId] = err;
+                        hasError = true;
+                    }
+                });
+                setFieldErrors(errors);
+                return !hasError;
+            };
+
+            // กดส่งจากหน้าลูกค้า
             const submitClientForm = async (e) => {
                 e.preventDefault();
-                const missingFields = clientProject.fields.filter(f => {
-                    if (!f.required) return false;
-                    const val = fieldValues[f.entryId];
-                    if (Array.isArray(val)) return val.length === 0;
-                    return !val || val.toString().trim() === '';
-                });
-                if (missingFields.length > 0) return alert('กรุณากรอกข้อมูลที่มีเครื่องหมาย * (สีแดง) ให้ครบถ้วน');
+                if (!handleValidationBeforeSubmit(clientProject, fieldValues)) {
+                    alert('กรุณาตรวจสอบและแก้ไขข้อมูลให้ถูกต้องตามที่ระบบแจ้งเตือน (สีแดง)');
+                    return;
+                }
 
                 try {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(clientFormId).update({
@@ -655,28 +723,82 @@
                 } catch (error) { alert('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + error.message); }
             };
 
+            // Smart Parser: ระบบกวาดข้อมูลอัจฉริยะ (ดึงคำอธิบาย + Validation ทะลุอักขระพิเศษ)
             const handleAddProject = async (e) => {
                 if(e) e.preventDefault();
                 try {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(inputHtml, 'text/html');
-                    const scriptWithData = Array.from(doc.querySelectorAll('script')).find(s => s.innerText.includes('FB_PUBLIC_LOAD_DATA_'));
+                    const scriptWithData = Array.from(doc.querySelectorAll('script')).find(s => s.textContent && s.textContent.includes('FB_PUBLIC_LOAD_DATA_'));
                     if (!scriptWithData) throw new Error('ไม่พบข้อมูลฟอร์ม');
-                    const regex = /FB_PUBLIC_LOAD_DATA_ = (.*?);/s;
-                    const data = JSON.parse(scriptWithData.innerText.match(regex)[1]);
+                    
+                    const textContent = scriptWithData.textContent;
+                    const prefix = 'FB_PUBLIC_LOAD_DATA_ = ';
+                    const startIndex = textContent.indexOf(prefix) + prefix.length;
+                    
+                    let jsonStr = "";
+                    let bracketCount = 0;
+                    let inString = false;
+                    let escape = false;
+                    let started = false;
+
+                    // วนลูปอ่านทีละตัวอักษรเพื่อป้องกันบั๊กจาก ; หรือ ] ที่อยู่ในคำอธิบาย
+                    for (let i = startIndex; i < textContent.length; i++) {
+                        const char = textContent[i];
+                        if (!started && char !== '[') continue;
+                        if (!started && char === '[') started = true;
+
+                        if (inString) {
+                            if (escape) escape = false;
+                            else if (char === '\\') escape = true;
+                            else if (char === '"') inString = false;
+                        } else {
+                            if (char === '"') inString = true;
+                            else if (char === '[') bracketCount++;
+                            else if (char === ']') bracketCount--;
+                        }
+                        jsonStr += char;
+                        
+                        // ถ้านับวงเล็บปิดครบถ้วน แสดงว่าจบอาร์เรย์ของข้อมูลฟอร์มแล้ว
+                        if (started && bracketCount === 0 && !inString) break;
+                    }
+                    
+                    if (!jsonStr) throw new Error('ไม่สามารถดึงโครงสร้างข้อมูลได้');
+                    
+                    const data = JSON.parse(jsonStr);
+                    const formDescription = data[1]?.[0] || ""; 
+                    
                     const fields = data[1][1].map(item => {
-                        const entryIdSuffix = item[4]?.[0]?.[0]; 
-                        const options = item[4]?.[0]?.[1]?.map(opt => opt[0]) || [];
-                        const isReq = Boolean(item[4]?.[0]?.[2]); 
+                        const itemData = item[4]?.[0];
+                        const entryIdSuffix = itemData?.[0]; 
+                        const options = itemData?.[1]?.map(opt => opt[0]) || [];
+                        const isReq = Boolean(itemData?.[2]); 
+                        const description = item[2] || ""; 
+                        
+                        let validation = null;
+                        // ดึงกฎการตรวจสอบ (ถ้ามี)
+                        if (itemData && itemData.length > 4 && itemData[4] && itemData[4].length > 0) {
+                            const vRule = itemData[4][0];
+                            validation = {
+                                type: vRule[0], 
+                                subType: vRule[1],
+                                args: vRule[2] || [], 
+                                errorMsg: vRule[3] || ""
+                            };
+                        }
+
                         if (!entryIdSuffix) return null;
                         return { 
                             label: item[1], entryId: `entry.${entryIdSuffix}`, options: options.length > 0 ? options : null, 
-                            type: item[3] === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text'), required: isReq
+                            type: item[3] === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text'), required: isReq,
+                            description: description, validation: validation
                         };
                     }).filter(f => f !== null);
+                    
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').add({
-                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username, createdAt: firebase.firestore.Timestamp.fromDate(new Date())
+                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", description: formDescription, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username, createdAt: firebase.firestore.Timestamp.fromDate(new Date())
                     });
+                    
                     setIsAddingProject(false); setInputHtml(''); setInputUrl(''); setInputCustomName(''); showToast('เพิ่มโปรเจกต์สำเร็จ');
                 } catch (err) { alert(err.message); }
             };
@@ -699,7 +821,7 @@
                     showToast(isDraft ? 'บันทึกแบบร่างสำเร็จ' : 'เพิ่มรายการเข้าคิวส่งแล้ว');
                 }
 
-                setTaskName(''); setFieldValues({}); 
+                setTaskName(''); setFieldValues({}); setFieldErrors({});
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
@@ -717,7 +839,7 @@
                 const link = `${window.location.origin}${window.location.pathname}?client_form=${docRef.id}`;
                 setGeneratedLink(link); 
                 
-                setTaskName(''); setFieldValues({}); 
+                setTaskName(''); setFieldValues({}); setFieldErrors({});
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
@@ -752,6 +874,7 @@
                 const current = fieldValues[entryId] || [];
                 const updated = current.includes(option) ? current.filter(o => o !== option) : [...current, option];
                 setFieldValues({ ...fieldValues, [entryId]: updated });
+                if (fieldErrors[entryId]) setFieldErrors({...fieldErrors, [entryId]: null});
             };
 
             const getTaskIcon = (status) => {
@@ -843,36 +966,72 @@
                 return (
                     <div className="min-h-screen bg-slate-900 py-10 px-4 font-bold overflow-y-auto">
                         <div className="max-w-xl mx-auto bg-white rounded-[40px] shadow-2xl p-8 sm:p-10 text-left animate-in slide-in-from-bottom-4">
-                            <div className="flex items-center gap-4 border-b pb-6 mb-6">
-                                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0"><Icon name="clipboard-list"/></div>
+                            <div className="flex items-start gap-4 border-b pb-6 mb-6">
+                                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 mt-1"><Icon name="clipboard-list"/></div>
                                 <div>
                                     <h1 className="text-xl font-black text-slate-800">กรอกข้อมูลบริการ</h1>
                                     <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{clientTask?.taskName} • {clientProject?.customName}</p>
+                                    {clientProject?.description && <p className="text-xs text-slate-500 mt-3 whitespace-pre-wrap leading-relaxed">{clientProject.description}</p>}
                                 </div>
                             </div>
                             
                             <form onSubmit={submitClientForm} className="space-y-6">
                                 {clientProject?.fields.map((f, i) => (
                                     <div key={i} className="space-y-2">
-                                        <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
-                                            {f.label}
-                                            {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
-                                        </label>
+                                        <div className="mb-2">
+                                            <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
+                                                {f.label}
+                                                {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
+                                            </label>
+                                            {f.description && <div className="text-[10px] text-slate-400 px-1 mt-0.5 whitespace-pre-wrap leading-tight">{f.description}</div>}
+                                        </div>
                                         {f.type === 'checkbox' ? (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 {f.options.map((opt, oi) => (
-                                                    <label key={oi} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30 border border-transparent">
+                                                    <label key={oi} className={`flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all border ${fieldErrors[f.entryId] ? 'border-red-300 bg-red-50/30' : 'border-transparent has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30'}`}>
                                                         <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 font-bold" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
                                                         <span className="text-xs font-bold text-slate-700">{opt}</span>
                                                     </label>
                                                 ))}
                                             </div>
                                         ) : f.options ? (
-                                            <select value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold focus:ring-2 ring-indigo-100 transition-all text-slate-700">
+                                            <select 
+                                                value={fieldValues[f.entryId] || ''} 
+                                                onChange={e => {
+                                                    setFieldValues({...fieldValues, [f.entryId]: e.target.value});
+                                                    if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
+                                                }} 
+                                                onBlur={e => {
+                                                    const err = validateField(f, e.target.value);
+                                                    if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
+                                                }}
+                                                className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold transition-all text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`}
+                                            >
                                                 <option value="">เลือกคำตอบ</option>
                                                 {f.options.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                             </select>
-                                        ) : <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all font-bold text-slate-700" placeholder={`กรอก ${f.label}`} />}
+                                        ) : (
+                                            <input 
+                                                type="text" 
+                                                value={fieldValues[f.entryId] || ''} 
+                                                onChange={e => {
+                                                    setFieldValues({...fieldValues, [f.entryId]: e.target.value});
+                                                    if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
+                                                }} 
+                                                onBlur={e => {
+                                                    const err = validateField(f, e.target.value);
+                                                    if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
+                                                }}
+                                                className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:bg-white transition-all font-bold text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`} 
+                                                placeholder={`กรอก ${f.label}`} 
+                                            />
+                                        )}
+                                        {/* แจ้งเตือน Validation Error */}
+                                        {fieldErrors[f.entryId] && (
+                                            <div className="text-red-500 text-[10px] mt-1.5 flex items-center gap-1 font-bold animate-in slide-in-from-top-1">
+                                                <Icon name="alert-circle" className="w-3 h-3"/> {fieldErrors[f.entryId]}
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                                 <div className="pt-6 border-t border-slate-100 mt-8">
@@ -1125,7 +1284,7 @@
                                     {projects.length === 0 && <p className="text-xs text-slate-400 px-2 italic">ยังไม่มีโปรเจกต์</p>}
                                     {projects.map(p => (
                                         <div key={p.id} className="relative group">
-                                            <button onClick={() => { setActiveProjectId(p.id); setEditingTaskId(null); setFieldValues({}); setTaskName(''); }} className={`w-full text-left p-4 pr-12 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
+                                            <button onClick={() => { setActiveProjectId(p.id); setEditingTaskId(null); setFieldValues({}); setFieldErrors({}); setTaskName(''); }} className={`w-full text-left p-4 pr-12 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
                                                 <div className="flex flex-col truncate">
                                                     <span className="font-bold truncate text-sm">{p.title}</span>
                                                     <span className={`text-[10px] truncate ${activeProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>{p.customName}</span>
@@ -1153,7 +1312,7 @@
                                                         <span className="font-bold text-sm">กำลังแก้ไข / ตรวจสอบคิวงาน</span>
                                                     </div>
                                                     <button type="button" onClick={() => {
-                                                        setEditingTaskId(null); setTaskName(''); setFieldValues({}); setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
+                                                        setEditingTaskId(null); setTaskName(''); setFieldValues({}); setFieldErrors({}); setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
                                                     }} className="text-xs bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100 font-black">ยกเลิก</button>
                                                 </div>
                                             )}
@@ -1161,7 +1320,6 @@
                                             <form onSubmit={(e) => { 
                                                 e.preventDefault(); 
                                                 
-                                                // ตรวจสอบว่ามีการกรอกข้อมูลหรือไม่
                                                 const hasAnyData = Object.values(fieldValues).some(v => {
                                                     if (Array.isArray(v)) return v.length > 0;
                                                     return v !== null && v !== undefined && v.toString().trim() !== '';
@@ -1173,17 +1331,10 @@
                                                     return;
                                                 }
                                                 
-                                                // ตรวจสอบข้อมูลบังคับกรอก
-                                                const missingFields = activeProject.fields.filter(f => {
-                                                    if (!f.required) return false;
-                                                    const val = fieldValues[f.entryId];
-                                                    if (Array.isArray(val)) return val.length === 0;
-                                                    return !val || val.toString().trim() === '';
-                                                });
-                                                
-                                                if (missingFields.length > 0) {
-                                                    showToast('กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วน', 'error');
+                                                // ตรวจสอบความถูกต้อง (Validation) ก่อนเพิ่มคิว
+                                                if (!handleValidationBeforeSubmit(activeProject, fieldValues)) {
                                                     setIsFormModalOpen(true);
+                                                    showToast('กรุณาแก้ไขข้อมูลฟอร์มให้ถูกต้องตามที่ไฮไลท์สีแดง', 'error');
                                                     return;
                                                 }
 
@@ -1199,13 +1350,13 @@
                                                     </div>
                                                     <div className="pt-2 text-left">
                                                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2 block mb-2">ข้อมูลฟอร์ม</label>
-                                                        <button type="button" onClick={() => setIsFormModalOpen(true)} className={`w-full p-5 border-2 border-dashed rounded-2xl font-black transition-all flex items-center justify-center gap-2 ${Object.keys(fieldValues).length > 0 ? 'border-indigo-200 text-indigo-600 hover:bg-indigo-50' : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 hover:border-slate-300'}`}>
-                                                            <Icon name="file-edit" className="w-6 h-6"/>
-                                                            คลิกเพื่อกรอกข้อมูล
+                                                        <button type="button" onClick={() => setIsFormModalOpen(true)} className={`w-full p-5 border-2 border-dashed rounded-2xl font-black transition-all flex items-center justify-center gap-2 ${Object.keys(fieldValues).length > 0 ? (Object.keys(fieldErrors).length > 0 ? 'border-red-200 text-red-500 hover:bg-red-50' : 'border-indigo-200 text-indigo-600 hover:bg-indigo-50') : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 hover:border-slate-300'}`}>
+                                                            <Icon name={Object.keys(fieldErrors).length > 0 ? "alert-circle" : "file-edit"} className="w-6 h-6"/>
+                                                            {Object.keys(fieldErrors).length > 0 ? 'มีข้อผิดพลาดในฟอร์ม คลิกเพื่อแก้ไข' : 'คลิกเพื่อกรอกข้อมูล'}
                                                             {Object.keys(fieldValues).filter(k => {
                                                                 const v = fieldValues[k];
                                                                 return Array.isArray(v) ? v.length > 0 : (v && v.toString().trim() !== '');
-                                                            }).length > 0 && <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-full text-[10px] ml-2 shadow-sm">{Object.keys(fieldValues).filter(k => {
+                                                            }).length > 0 && <span className={`${Object.keys(fieldErrors).length > 0 ? 'bg-red-500' : 'bg-indigo-600'} text-white px-2.5 py-1 rounded-full text-[10px] ml-2 shadow-sm`}>{Object.keys(fieldValues).filter(k => {
                                                                 const v = fieldValues[k];
                                                                 return Array.isArray(v) ? v.length > 0 : (v && v.toString().trim() !== '');
                                                             }).length} ข้อมูล</span>}
@@ -1663,6 +1814,40 @@
                         </div>
                     )}
 
+                    {/* EDIT PROJECT MODAL */}
+                    {editProjectData && (
+                        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-4 border-slate-50">
+                                <div className="flex justify-between items-center border-b pb-4">
+                                    <h2 className="text-xl font-black flex items-center gap-3"><Icon name="settings" className="text-indigo-600"/> จัดการโปรเจกต์</h2>
+                                    <button type="button" onClick={() => setEditProjectData(null)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
+                                </div>
+                                
+                                <form onSubmit={handleUpdateProject} className="space-y-4">
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">ชื่อโปรเจกต์ (ตั้งเอง)</label>
+                                        <input type="text" value={editProjectData.customName} onChange={e => setEditProjectData({...editProjectData, customName: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">URL ลิงก์ฟอร์ม</label>
+                                        <input type="text" value={editProjectData.url} onChange={e => setEditProjectData({...editProjectData, url: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
+                                    </div>
+                                    
+                                    <div className="pt-4 border-t flex flex-wrap gap-3 mt-6">
+                                        {currentUserData?.permissions?.canDeleteAnything && (
+                                            <button type="button" onClick={handleDeleteProject} className="flex-1 bg-red-50 text-red-600 py-3.5 rounded-2xl font-black hover:bg-red-100 transition-all flex items-center justify-center gap-2">
+                                                <Icon name="trash-2" className="w-4 h-4"/> ลบโปรเจกต์
+                                            </button>
+                                        )}
+                                        <button type="submit" className="flex-[2] bg-indigo-600 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95">
+                                            บันทึกการแก้ไข
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
                     {/* FINANCE MODAL */}
                     {isFinanceOpen && (
                         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
@@ -1829,35 +2014,71 @@
                     {isFormModalOpen && activeProject && (
                         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
                             <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-                                <div className="flex justify-between items-center border-b p-8 bg-slate-50 shrink-0">
-                                    <div className="text-left">
+                                <div className="flex justify-between items-start border-b p-8 bg-slate-50 shrink-0">
+                                    <div className="text-left pr-4">
                                         <h2 className="text-xl font-black text-slate-800 flex items-center gap-3"><Icon name="file-edit" className="text-indigo-600"/> กรอกข้อมูลฟอร์ม</h2>
                                         <span className="text-[10px] text-slate-400 uppercase tracking-widest ml-9">{activeProject.title}</span>
+                                        {activeProject.description && <p className="text-[10px] text-slate-500 mt-3 ml-9 whitespace-pre-wrap leading-relaxed">{activeProject.description}</p>}
                                     </div>
-                                    <button type="button" onClick={() => setIsFormModalOpen(false)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
+                                    <button type="button" onClick={() => setIsFormModalOpen(false)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all mt-1"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar text-left bg-white space-y-6">
                                     {activeProject.fields.map((f, i) => (
                                         <div key={i} className="space-y-2">
-                                            <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
-                                                {f.label}
-                                                {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
-                                            </label>
+                                            <div className="mb-2">
+                                                <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
+                                                    {f.label}
+                                                    {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
+                                                </label>
+                                                {f.description && <div className="text-[10px] text-slate-400 px-1 mt-0.5 whitespace-pre-wrap leading-tight">{f.description}</div>}
+                                            </div>
                                             {f.type === 'checkbox' ? (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                     {f.options.map((opt, oi) => (
-                                                        <label key={oi} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30 border border-transparent">
+                                                        <label key={oi} className={`flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all border ${fieldErrors[f.entryId] ? 'border-red-300 bg-red-50/30' : 'border-transparent has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30'}`}>
                                                             <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 font-bold" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
                                                             <span className="text-xs font-bold text-slate-700">{opt}</span>
                                                         </label>
                                                     ))}
                                                 </div>
                                             ) : f.options ? (
-                                                <select value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold focus:ring-2 ring-indigo-100 transition-all">
+                                                <select 
+                                                    value={fieldValues[f.entryId] || ''} 
+                                                    onChange={e => {
+                                                        setFieldValues({...fieldValues, [f.entryId]: e.target.value});
+                                                        if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
+                                                    }} 
+                                                    onBlur={e => {
+                                                        const err = validateField(f, e.target.value);
+                                                        if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
+                                                    }}
+                                                    className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold transition-all text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`}
+                                                >
                                                     <option value="">เลือกคำตอบ</option>
                                                     {f.options.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                                 </select>
-                                            ) : <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all font-bold" />}
+                                            ) : (
+                                                <input 
+                                                    type="text" 
+                                                    value={fieldValues[f.entryId] || ''} 
+                                                    onChange={e => {
+                                                        setFieldValues({...fieldValues, [f.entryId]: e.target.value});
+                                                        if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
+                                                    }} 
+                                                    onBlur={e => {
+                                                        const err = validateField(f, e.target.value);
+                                                        if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
+                                                    }}
+                                                    className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:bg-white transition-all font-bold text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`} 
+                                                    placeholder={`กรอก ${f.label}`} 
+                                                />
+                                            )}
+                                            {/* แจ้งเตือน Validation Error */}
+                                            {fieldErrors[f.entryId] && (
+                                                <div className="text-red-500 text-[10px] mt-1.5 flex items-center gap-1 font-bold animate-in slide-in-from-top-1">
+                                                    <Icon name="alert-circle" className="w-3 h-3"/> {fieldErrors[f.entryId]}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
