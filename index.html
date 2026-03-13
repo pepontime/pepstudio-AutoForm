@@ -96,12 +96,14 @@
         // Formatters for strictly Displaying DD/MM/YYYY and 24h Time
         const formatDisplayDate = (d) => {
             if (!d) return '';
-            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+            const dateObj = (d instanceof Date) ? d : (d.toDate ? d.toDate() : new Date(d));
+            return `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear() + 543}`;
         };
 
         const formatDisplayTime = (d) => {
             if (!d) return '';
-            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+            const dateObj = (d instanceof Date) ? d : (d.toDate ? d.toDate() : new Date(d));
+            return `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
         };
 
         // Clipboard helper function
@@ -419,7 +421,7 @@
                     }
                 });
 
-                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() }))));
                 const unsubTasks = publicDataRef.collection('tasks').onSnapshot(snap => setTasks(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), targetTime: doc.data().targetTime?.toDate(), createdAt: doc.data().createdAt?.toDate() }))));
                 const unsubFinance = publicDataRef.collection('finance').onSnapshot(snap => setFinanceRecords(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date?.toDate() }))));
 
@@ -477,7 +479,7 @@
             }, [isSettingInitialPass, confirmState.isOpen, isMenuOpen, viewStatModal, isAdminPanelOpen, isEditingAdminModalOpen, isClearDataOpen, isFinanceOpen, isAddingProject, isFormModalOpen, selectedTask, generatedLink, selectedProjectDetail, editProjectData]);
 
             // ==========================================
-            // Validation Logic (จำลองกฎจาก Google Form)
+            // Validation Logic (ปรับปรุงให้แสดงข้อความตรงกับเงื่อนไข Google Form)
             // ==========================================
             const validateField = (f, val) => {
                 if (!val || (Array.isArray(val) && val.length === 0) || val.toString().trim() === '') {
@@ -487,23 +489,22 @@
                 if (f.validation) {
                     const { type, subType, args, errorMsg } = f.validation;
                     const strVal = val.toString().trim();
-                    const errMsg = errorMsg || 'รูปแบบข้อมูลไม่ถูกต้อง';
+                    const errMsg = errorMsg && errorMsg.trim() !== "" ? errorMsg : null;
 
                     if (type === 1) { // 1 = Number
                         const num = parseFloat(strVal);
                         const target = args && args.length > 0 ? parseFloat(args[0]) : 0;
                         if (isNaN(num)) return errorMsg || 'ต้องเป็นตัวเลขเท่านั้น';
-                        if (subType === 1 && !(num > target)) return errMsg; // มากกว่า
-                        if (subType === 2 && !(num >= target)) return errMsg; // มากกว่าหรือเท่ากับ
-                        if (subType === 3 && !(num < target)) return errMsg; // น้อยกว่า
-                        if (subType === 4 && !(num <= target)) return errMsg; // น้อยกว่าหรือเท่ากับ
-                        if (subType === 5 && !(num === target)) return errMsg; // เท่ากับ
-                        if (subType === 6 && !(num !== target)) return errMsg; // ไม่เท่ากับ
-                        if (subType === 9 && args.length > 1 && !(num >= parseFloat(args[0]) && num <= parseFloat(args[1]))) return errMsg; // อยู่ระหว่าง
-                        if (subType === 10 && args.length > 1 && (num >= parseFloat(args[0]) && num <= parseFloat(args[1]))) return errMsg; // ไม่อยู่ระหว่าง
+                        if (subType === 1 && !(num > target)) return errMsg || `ต้องมากกว่า ${target}`;
+                        if (subType === 2 && !(num >= target)) return errMsg || `ต้องมากกว่าหรือเท่ากับ ${target}`;
+                        if (subType === 3 && !(num < target)) return errMsg || `ต้องน้อยกว่า ${target}`;
+                        if (subType === 4 && !(num <= target)) return errMsg || `ต้องน้อยกว่าหรือเท่ากับ ${target}`;
+                        if (subType === 5 && !(num === target)) return errMsg || `ต้องเท่ากับ ${target}`;
+                        if (subType === 6 && !(num !== target)) return errMsg || `ต้องไม่เท่ากับ ${target}`;
+                        if (subType === 9 && args.length > 1 && !(num >= parseFloat(args[0]) && num <= parseFloat(args[1]))) return errMsg || `ต้องอยู่ระหว่าง ${args[0]} และ ${args[1]}`;
                     } else if (type === 2) { // 2 = Text
-                        if (subType === 100 && !strVal.includes(args[0])) return errMsg; // มีคำว่า
-                        if (subType === 101 && strVal.includes(args[0])) return errMsg; // ไม่มีคำว่า
+                        if (subType === 100 && !strVal.includes(args[0])) return errMsg || `ต้องมีคำว่า "${args[0]}"`;
+                        if (subType === 101 && strVal.includes(args[0])) return errMsg || `ต้องไม่มีคำว่า "${args[0]}"`;
                         if (subType === 102) { // อีเมล
                             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                             if (!emailRegex.test(strVal)) return errorMsg || 'อีเมลไม่ถูกต้อง';
@@ -515,10 +516,10 @@
                     } else if (type === 4) { // 4 = Regex
                         try {
                             const regex = new RegExp(args[0]);
-                            if (subType === 299 && !regex.test(strVal)) return errMsg; // มี
-                            if (subType === 298 && !regex.test(strVal)) return errMsg; // ตรงกัน
-                            if (subType === 300 && regex.test(strVal)) return errMsg; // ไม่มี
-                            if (subType === 301 && regex.test(strVal)) return errMsg; // ไม่ตรงกัน
+                            if (subType === 299 && !regex.test(strVal)) return errMsg || 'รูปแบบข้อมูลไม่ถูกต้อง';
+                            if (subType === 298 && !regex.test(strVal)) return errMsg || 'ข้อมูลไม่ตรงกับรูปแบบที่กำหนด';
+                            if (subType === 300 && regex.test(strVal)) return errMsg || 'รูปแบบข้อมูลไม่ถูกต้อง';
+                            if (subType === 301 && regex.test(strVal)) return errMsg || 'ข้อมูลไม่ควรตรงกับรูปแบบนี้';
                         } catch(e) {}
                     } else if (type === 6) { // 6 = Length
                         const limit = parseInt(args[0], 10);
@@ -1080,7 +1081,7 @@
                     {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
                     <ConfirmPopup isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} type={confirmState.type} />
 
-                    {/* Edit Project Modal */}
+                    {/* Edit Project Modal (ปรับปรุงให้แสดงรายละเอียดผู้สร้าง) */}
                     {editProjectData && (
                         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
                             <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-4 border-slate-50">
@@ -1090,6 +1091,14 @@
                                 </div>
                                 
                                 <form onSubmit={handleUpdateProject} className="space-y-4">
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-2">
+                                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">รายละเอียดระบบ</div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between text-xs font-bold"><span className="text-slate-500">ผู้เพิ่มโปรเจกต์:</span> <span className="text-indigo-600">{editProjectData.createdBy || 'Unknown'}</span></div>
+                                            <div className="flex justify-between text-xs font-bold"><span className="text-slate-500">วันที่เพิ่มเข้าระบบ:</span> <span className="text-indigo-600">{formatDisplayDate(editProjectData.createdAt)} {formatDisplayTime(editProjectData.createdAt)}</span></div>
+                                            <div className="flex justify-between text-xs font-bold"><span className="text-slate-500">ชื่อฟอร์มต้นฉบับ:</span> <span className="text-slate-400 truncate max-w-[150px]">{editProjectData.title}</span></div>
+                                        </div>
+                                    </div>
                                     <div>
                                         <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">ชื่อโปรเจกต์ (ตั้งเอง)</label>
                                         <input type="text" value={editProjectData.customName} onChange={e => setEditProjectData({...editProjectData, customName: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
@@ -1271,18 +1280,31 @@
 
                         {/* --- WORKSPACE TAB --- */}
                         <div className={activeTab === 'workspace' ? "block grid lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-300" : "hidden"}>
+                            {/* รายชื่อโปรเจกต์ (ปรับปรุงให้เรียงลำดับได้) */}
                             <div className="lg:col-span-3 space-y-3">
                                 <div className="flex justify-between items-center px-2">
                                     <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">รายชื่อโปรเจกต์</h3>
-                                    {currentUserData?.permissions?.canManageProjects && (
-                                        <button onClick={() => setIsAddingProject(true)} className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg transition-all" title="เพิ่มโปรเจกต์ใหม่">
-                                            <Icon name="plus" className="w-4 h-4" />
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-1">
+                                        <select value={projectSortBy} onChange={e => setProjectSortBy(e.target.value)} className="text-[9px] font-bold text-slate-400 bg-transparent outline-none cursor-pointer hover:text-indigo-600 transition-colors">
+                                            <option value="createdAt_desc">ล่าสุดก่อน</option>
+                                            <option value="createdAt_asc">เก่าสุดก่อน</option>
+                                            <option value="title_asc">ตามชื่อ (ก-ฮ)</option>
+                                        </select>
+                                        {currentUserData?.permissions?.canManageProjects && (
+                                            <button onClick={() => setIsAddingProject(true)} className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg transition-all ml-1" title="เพิ่มโปรเจกต์ใหม่">
+                                                <Icon name="plus" className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar space-y-3">
                                     {projects.length === 0 && <p className="text-xs text-slate-400 px-2 italic">ยังไม่มีโปรเจกต์</p>}
-                                    {projects.map(p => (
+                                    {projects.slice().sort((a,b) => {
+                                        if (projectSortBy === 'createdAt_desc') return (b.createdAt || 0) - (a.createdAt || 0);
+                                        if (projectSortBy === 'createdAt_asc') return (a.createdAt || 0) - (b.createdAt || 0);
+                                        if (projectSortBy === 'title_asc') return a.title.localeCompare(b.title);
+                                        return 0;
+                                    }).map(p => (
                                         <div key={p.id} className="relative group">
                                             <button onClick={() => { setActiveProjectId(p.id); setEditingTaskId(null); setFieldValues({}); setFieldErrors({}); setTaskName(''); }} className={`w-full text-left p-4 pr-12 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
                                                 <div className="flex flex-col truncate">
@@ -1810,40 +1832,6 @@
                                     <button onClick={() => setIsClearDataOpen(false)} className="flex-1 bg-slate-100 text-slate-600 py-3.5 rounded-2xl font-black">ยกเลิก</button>
                                     <button onClick={() => { if(!clearOptions.tasks && !clearOptions.projects && !clearOptions.finance && !clearOptions.admins) return alert('กรุณาเลือกข้อมูลอย่างน้อย 1 รายการ'); triggerConfirm("ยืนยันการล้างข้อมูล", "คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลที่เลือกอย่างถาวร?", handleClearDataSubmit, 'danger'); }} className="flex-[2] bg-red-600 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-red-700 active:scale-95">ยืนยันการล้างข้อมูล</button>
                                 </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* EDIT PROJECT MODAL */}
-                    {editProjectData && (
-                        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
-                            <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-4 border-slate-50">
-                                <div className="flex justify-between items-center border-b pb-4">
-                                    <h2 className="text-xl font-black flex items-center gap-3"><Icon name="settings" className="text-indigo-600"/> จัดการโปรเจกต์</h2>
-                                    <button type="button" onClick={() => setEditProjectData(null)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
-                                </div>
-                                
-                                <form onSubmit={handleUpdateProject} className="space-y-4">
-                                    <div>
-                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">ชื่อโปรเจกต์ (ตั้งเอง)</label>
-                                        <input type="text" value={editProjectData.customName} onChange={e => setEditProjectData({...editProjectData, customName: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">URL ลิงก์ฟอร์ม</label>
-                                        <input type="text" value={editProjectData.url} onChange={e => setEditProjectData({...editProjectData, url: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
-                                    </div>
-                                    
-                                    <div className="pt-4 border-t flex flex-wrap gap-3 mt-6">
-                                        {currentUserData?.permissions?.canDeleteAnything && (
-                                            <button type="button" onClick={handleDeleteProject} className="flex-1 bg-red-50 text-red-600 py-3.5 rounded-2xl font-black hover:bg-red-100 transition-all flex items-center justify-center gap-2">
-                                                <Icon name="trash-2" className="w-4 h-4"/> ลบโปรเจกต์
-                                            </button>
-                                        )}
-                                        <button type="submit" className="flex-[2] bg-indigo-600 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95">
-                                            บันทึกการแก้ไข
-                                        </button>
-                                    </div>
-                                </form>
                             </div>
                         </div>
                     )}
