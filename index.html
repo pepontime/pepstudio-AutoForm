@@ -117,22 +117,27 @@
             return `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
         };
 
-        // Clipboard helper function
+        // 🛠️ Updated Clipboard helper function to work reliably in iFrames
         const copyToClipboard = (text, onSuccess) => {
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(onSuccess);
-            } else {
-                let textArea = document.createElement("textarea");
-                textArea.value = text;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try { document.execCommand('copy'); onSuccess(); } catch (err) {}
-                textArea.remove();
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            // Ensure the textarea is in the DOM but hidden
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                // Using document.execCommand('copy') as per instructions for iframe compatibility
+                const successful = document.execCommand('copy');
+                if (successful && onSuccess) {
+                    onSuccess();
+                }
+            } catch (err) {
+                console.error('Copy fallback failed', err);
             }
+            document.body.removeChild(textArea);
         };
 
         // CSV Export Helper Function
@@ -444,7 +449,7 @@
                 return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); unsubFinance(); };
             }, [user, isLoggedIn, clientFormId, currentUserData?.username]);
 
-            // === Customer Link Workflow Logic ===
+            // === Customer Deep Linking Workflow Logic ===
             useEffect(() => {
                 if (clientFormId && user) {
                     const taskRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(clientFormId);
@@ -458,7 +463,7 @@
                                 db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(tData.projectId).get().then(pDoc => {
                                     setClientProject({ id: pDoc.id, ...pDoc.data() });
                                     setFieldValues(tData.data || {});
-                                    setFieldErrors({}); // Reset errors
+                                    setFieldErrors({}); 
                                     setClientStatus('ready');
                                 });
                             }
@@ -487,7 +492,6 @@
                 if (!createQueueRef.current) return false;
                 const rect = createQueueRef.current.getBoundingClientRect();
                 const viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight);
-                // Consider "in view" if at least some part of the header is visible
                 return !(rect.bottom < 0 || rect.top - viewHeight >= 0);
             }, []);
 
@@ -498,7 +502,6 @@
                     return;
                 }
 
-                // Initial Visibility Check
                 const handleScroll = () => {
                     if (checkFormInView()) {
                         setShowFloatingButton(false);
@@ -506,7 +509,6 @@
                     }
                 };
 
-                // Logic: เมื่อกดเลือกโปรเจกต์ ถ้ามองไม่เห็นฟอร์มสร้างคิว ให้เริ่มนับถอยหลัง 1.5 วิเพื่อโชว์ปุ่ม
                 if (!checkFormInView()) {
                     if (timerRef.current) clearTimeout(timerRef.current);
                     timerRef.current = setTimeout(() => {
@@ -544,7 +546,7 @@
             }, [isSettingInitialPass, confirmState.isOpen, isMenuOpen, viewStatModal, isAdminPanelOpen, isEditingAdminModalOpen, isClearDataOpen, isFinanceOpen, isAddingProject, isFormModalOpen, selectedTask, generatedLink, selectedProjectDetail, editProjectData]);
 
             // ==========================================
-            // Validation Logic (ปรับปรุงให้แสดงข้อความตรงกับเงื่อนไข Google Form)
+            // Validation Logic
             // ==========================================
             const validateField = (f, val) => {
                 if (!val || (Array.isArray(val) && val.length === 0) || val.toString().trim() === '') {
@@ -609,7 +611,6 @@
                 return !hasError;
             };
 
-            // กดส่งจากหน้าลูกค้า
             const submitClientForm = async (e) => {
                 e.preventDefault();
                 if (!handleValidationBeforeSubmit(clientProject, fieldValues)) {
@@ -808,7 +809,6 @@
                     let escape = false;
                     let started = false;
 
-                    // วนลูปอ่านทีละตัวอักษรเพื่อป้องกันบั๊กจาก ; หรือ ] ที่อยู่ในคำอธิบาย
                     for (let i = startIndex; i < textContent.length; i++) {
                         const char = textContent[i];
                         if (!started && char !== '[') continue;
@@ -825,7 +825,6 @@
                         }
                         jsonStr += char;
                         
-                        // ถ้านับวงเล็บปิดครบถ้วน แสดงว่าจบอาร์เรย์ของข้อมูลฟอร์มแล้ว
                         if (started && bracketCount === 0 && !inString) break;
                     }
                     
@@ -834,6 +833,14 @@
                     const data = JSON.parse(jsonStr);
                     const formDescription = data[1]?.[0] || ""; 
                     
+                    const fbzxMatch = inputHtml.match(/name="fbzx" value="([^"]+)"/);
+                    const fvvMatch = inputHtml.match(/name="fvv" value="([^"]+)"/);
+                    const pageHistoryMatch = inputHtml.match(/name="pageHistory" value="([^"]+)"/);
+                    
+                    const fbzx = fbzxMatch ? fbzxMatch[1] : "";
+                    const fvv = fvvMatch ? fvvMatch[1] : "1";
+                    const pageHistory = pageHistoryMatch ? pageHistoryMatch[1] : "0";
+
                     const fields = data[1][1].map(item => {
                         const itemData = item[4]?.[0];
                         const entryIdSuffix = itemData?.[0]; 
@@ -842,7 +849,6 @@
                         const description = item[2] || ""; 
                         
                         let validation = null;
-                        // ดึงกฎการตรวจสอบ (ถ้ามี)
                         if (itemData && itemData.length > 4 && itemData[4] && itemData[4].length > 0) {
                             const vRule = itemData[4][0];
                             validation = {
@@ -862,7 +868,14 @@
                     }).filter(f => f !== null);
                     
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').add({
-                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", description: formDescription, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", 
+                        description: formDescription, 
+                        customName: inputCustomName || "ไม่มีชื่อเรียก", 
+                        url: inputUrl, 
+                        fields, 
+                        fbzx, fvv, pageHistory,
+                        createdBy: currentUserData.username, 
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     
                     setIsAddingProject(false); setInputHtml(''); setInputUrl(''); setInputCustomName(''); showToast('เพิ่มโปรเจกต์สำเร็จ');
@@ -874,7 +887,8 @@
                 const target = new Date(`${scheduleDate}T${scheduleTime}`);
                 const taskData = {
                     projectId: activeProjectId, projectTitle: activeProject.title, projectCustomName: activeProject.customName, taskName: taskName || 'รายการใหม่', data: fieldValues,
-                    targetTime: firebase.firestore.Timestamp.fromDate(target), status: isDraft ? 'draft' : 'pending', url: activeProject.url, createdBy: currentUserData.username
+                    targetTime: firebase.firestore.Timestamp.fromDate(target), status: isDraft ? 'draft' : 'pending', url: activeProject.url, createdBy: currentUserData.username,
+                    fbzx: activeProject.fbzx || "", fvv: activeProject.fvv || "1", pageHistory: activeProject.pageHistory || "0"
                 };
 
                 if (editingTaskId) {
@@ -899,7 +913,8 @@
                 const docRef = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').add({
                     projectId: activeProjectId, projectTitle: activeProject.title, projectCustomName: activeProject.customName, taskName: taskName, data: {},
                     createdAt: firebase.firestore.Timestamp.fromDate(new Date()), targetTime: firebase.firestore.Timestamp.fromDate(target),
-                    status: 'customer_link_created', url: activeProject.url, createdBy: currentUserData.username
+                    status: 'customer_link_created', url: activeProject.url, createdBy: currentUserData.username,
+                    fbzx: activeProject.fbzx || "", fvv: activeProject.fvv || "1", pageHistory: activeProject.pageHistory || "0"
                 });
 
                 const link = `${window.location.origin}${window.location.pathname}?client_form=${docRef.id}`;
@@ -909,7 +924,6 @@
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
-            // 🚀 ฟังก์ชันการส่งข้อมูลจากโค้ด (11) แบบเป๊ะๆ - Hidden Form & iFrame Submission
             const submitTask = async (task) => {
                 const taskRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id);
                 await taskRef.update({ status: 'sending' });
@@ -928,6 +942,17 @@
                 form.action = task.url.replace('/viewform', '/formResponse');
                 form.target = iframeName;
                 form.style.display = 'none';
+
+                const securityFields = {
+                    'fbzx': task.fbzx || '',
+                    'fvv': task.fvv || '1',
+                    'pageHistory': task.pageHistory || '0'
+                };
+                Object.entries(securityFields).forEach(([key, val]) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden'; input.name = key; input.value = val;
+                    form.appendChild(input);
+                });
 
                 Object.entries(task.data).forEach(([key, val]) => {
                     if (Array.isArray(val)) {
@@ -988,7 +1013,6 @@
                 return { name: 'timer', color: 'bg-amber-100 text-amber-600', dot: 'bg-amber-500' }; 
             };
 
-            // Project Edit Logic
             const handleUpdateProject = async (e) => {
                 e.preventDefault();
                 try {
@@ -1020,19 +1044,12 @@
                 }, 'danger');
             };
 
-            // ==========================================
-            // RENDER: SPLASH SCREEN (LOADING)
-            // ==========================================
             if (!isAppReady) {
                 return (
                     <div className="min-h-screen flex flex-col items-center justify-center bg-white relative overflow-hidden font-bold">
                         <div className="flex flex-col items-center justify-center z-10 w-full animate-in fade-in zoom-in duration-300">
-                            {/* Animated Logo Container */}
                             <div className="relative mb-8">
-                                {/* Outer spinning ring (Clockwise) */}
                                 <div className="absolute -inset-4 rounded-full border-[3px] border-indigo-50 border-t-indigo-500 animate-spin-cw"></div>
-                                
-                                {/* Logo (Counter-Clockwise) */}
                                 <div className="animate-spin-ccw relative z-10">
                                     {displayLogo ? (
                                         <img src={displayLogo} className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-full shadow-lg border-2 border-white" />
@@ -1051,9 +1068,6 @@
                 );
             }
 
-            // ==========================================
-            // RENDER: CLIENT FORM VIEW (No Login Needed)
-            // ==========================================
             if (clientFormId) {
                 if (clientStatus === 'error' || clientStatus === 'not_found') return (
                     <div className="min-h-screen bg-slate-50 flex flex-col gap-4 items-center justify-center font-black text-red-500 text-center p-6 animate-in zoom-in-95">
@@ -1138,7 +1152,6 @@
                                                 placeholder={`กรอก ${f.label}`} 
                                             />
                                         )}
-                                        {/* แจ้งเตือน Validation Error */}
                                         {fieldErrors[f.entryId] && (
                                             <div className="text-red-500 text-[10px] mt-1.5 flex items-center gap-1 font-bold animate-in slide-in-from-top-1">
                                                 <Icon name="alert-circle" className="w-3 h-3"/> {fieldErrors[f.entryId]}
@@ -1155,9 +1168,6 @@
                 );
             }
 
-            // ==========================================
-            // RENDER: ADMIN APP UI
-            // ==========================================
             if (!isLoggedIn) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6 relative overflow-hidden">
@@ -1192,7 +1202,6 @@
                     {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
                     <ConfirmPopup isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} type={confirmState.type} />
 
-                    {/* SMART FLOATING BUTTON (Mobile Only) */}
                     {showFloatingButton && (
                         <div className="fixed bottom-6 right-6 z-[80] sm:hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
                             <button 
@@ -1205,7 +1214,6 @@
                         </div>
                     )}
 
-                    {/* Edit Project Modal */}
                     {editProjectData && (
                         <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-4 border-slate-50 my-auto">
@@ -1248,7 +1256,6 @@
                         </div>
                     )}
 
-                    {/* Link Generated Modal */}
                     {generatedLink && (
                         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 modal-overlay animate-in zoom-in-95 overflow-y-auto">
                             <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 space-y-6 text-center border-4 border-emerald-50 my-auto">
@@ -1268,7 +1275,6 @@
                         </div>
                     )}
 
-                    {/* Initial Password Modal */}
                     {isSettingInitialPass && (
                         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 modal-overlay overflow-y-auto">
                             <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 text-center space-y-6 animate-in zoom-in-95 my-auto">
@@ -1281,9 +1287,7 @@
                     )}
 
                     <div className="max-w-6xl mx-auto pt-8">
-                        {/* HEADER & NAVIGATION (MINIMAL HAMBURGER MENU) */}
                         <div className="flex justify-between items-center mb-10 w-full relative z-50">
-                            {/* Left: Profile & Logo */}
                             <div onClick={() => setActiveTab('dashboard')} className="flex items-center gap-3 sm:gap-5 cursor-pointer hover:opacity-80 active:scale-95 transition-all">
                                 {displayLogo ? (
                                     <img src={displayLogo} className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-full shadow-lg border-2 border-white" />
@@ -1296,7 +1300,6 @@
                                 </div>
                             </div>
 
-                            {/* Right: Hamburger Menu */}
                             <div className="relative">
                                 {isMenuOpen && <div className="fixed inset-0 z-[90]" onClick={() => setIsMenuOpen(false)}></div>}
                                 
@@ -1305,7 +1308,6 @@
                                     <span className="hidden sm:block font-black text-sm mr-1">เมนู</span>
                                 </button>
 
-                                {/* Dropdown Menu */}
                                 {isMenuOpen && (
                                     <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-[24px] shadow-2xl border border-slate-100 p-3 animate-in slide-in-from-top-2 origin-top-right flex flex-col gap-1 z-[100]">
                                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 pt-2 pb-1">มุมมอง</div>
@@ -1345,9 +1347,7 @@
                             </div>
                         </div>
 
-                        {/* --- DASHBOARD TAB --- */}
                         <div className={activeTab === 'dashboard' ? "block space-y-8 animate-in fade-in duration-300" : "hidden"}>
-                            {/* Top Stats Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                                 <div onClick={() => setViewStatModal('projects')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group">
                                     <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="folder" /></div>
@@ -1371,7 +1371,6 @@
                                 </div>
                             </div>
 
-                            {/* Financial & Overview Section (Visible to everyone) */}
                             <div className="grid md:grid-cols-3 gap-6">
                                 <div onClick={() => setViewStatModal('finance')} className="md:col-span-2 bg-slate-900 rounded-[40px] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden cursor-pointer hover:shadow-indigo-500/20 transition-all group">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-20 -mt-20"></div>
@@ -1403,9 +1402,7 @@
                             </div>
                         </div>
 
-                        {/* --- WORKSPACE TAB --- */}
                         <div className={activeTab === 'workspace' ? "block grid lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-300" : "hidden"}>
-                            {/* รายชื่อโปรเจกต์ (ปรับปรุงให้เรียงลำดับได้) */}
                             <div className="lg:col-span-3 space-y-3">
                                 <div className="flex justify-between items-center px-2">
                                     <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">รายชื่อโปรเจกต์</h3>
@@ -1450,7 +1447,6 @@
                             <div className="lg:col-span-9 space-y-8">
                                 {activeProject ? (
                                     <div className="grid md:grid-cols-2 gap-8 items-start">
-                                        {/* Create Task Form */}
                                         <div ref={createQueueRef} className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8 scroll-mt-6">
                                             {editingTaskId && (
                                                 <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-2xl flex justify-between items-center mb-6 animate-in fade-in">
@@ -1466,25 +1462,20 @@
 
                                             <form onSubmit={(e) => { 
                                                 e.preventDefault(); 
-                                                
                                                 const hasAnyData = Object.values(fieldValues).some(v => {
                                                     if (Array.isArray(v)) return v.length > 0;
                                                     return v !== null && v !== undefined && v.toString().trim() !== '';
                                                 });
-                                                
                                                 if (!hasAnyData) {
                                                     showToast('กรุณากรอกข้อมูลฟอร์มอย่างน้อย 1 ช่อง', 'error');
                                                     setIsFormModalOpen(true);
                                                     return;
                                                 }
-                                                
-                                                // ตรวจสอบความถูกต้อง (Validation) ก่อนเพิ่มคิว
                                                 if (!handleValidationBeforeSubmit(activeProject, fieldValues)) {
                                                     setIsFormModalOpen(true);
                                                     showToast('กรุณาแก้ไขข้อมูลฟอร์มให้ถูกต้องตามที่ไฮไลท์สีแดง', 'error');
                                                     return;
                                                 }
-
                                                 const isManager = currentUserData?.permissions?.canManageTasks;
                                                 triggerConfirm(editingTaskId ? "อัปเดตข้อมูล" : (isManager ? "เพิ่มคิวส่ง" : "บันทึกร่างข้อมูล"), editingTaskId ? "ยืนยันการอัปเดตและบันทึกข้อมูล?" : (isManager ? "ยืนยันการเพิ่มรายการเข้าคิวส่ง?" : "ยืนยันการบันทึกข้อมูลเพื่อรอตรวจสอบ?"), () => saveTask(!isManager));
                                             }} className="space-y-6">
@@ -1527,7 +1518,6 @@
                                             </form>
                                         </div>
 
-                                        {/* Monitoring Area */}
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-center px-2 pb-2 border-b border-slate-50">
                                                 <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">จำนวนรายการทั้งหมด {tasks.filter(t => t.projectId === activeProjectId).length} รายการ</h3>
@@ -1591,7 +1581,6 @@
                         </div>
                     </div>
 
-                    {/* MODAL: VIEW PROJECT DETAIL SUB-MODAL */}
                     {selectedProjectDetail && (
                         <div className="fixed inset-0 z-[260] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
@@ -1664,7 +1653,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: VIEW STATS DETAILS (View-Only Pop-up จากหน้าหลัก) */}
                     {viewStatModal && (
                         <div className="fixed inset-0 z-[250] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden my-auto">
@@ -1717,7 +1705,6 @@
                                     )}
 
                                     <div className="space-y-3">
-                                        {/* Render Projects */}
                                         {viewStatModal === 'projects' && projects.map(p => (
                                             <div key={p.id} onClick={() => setSelectedProjectDetail(p)} className="p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all cursor-pointer group flex justify-between items-center">
                                                 <div>
@@ -1729,7 +1716,6 @@
                                             </div>
                                         ))}
 
-                                        {/* Render Tasks */}
                                         {['tasks', 'pending', 'success'].includes(viewStatModal) && (() => {
                                             const filteredTasks = tasks.filter(t => {
                                                 if(viewStatModal === 'pending') return ['pending', 'draft', 'customer_link_created', 'customer_submitted'].includes(t.status);
@@ -1742,9 +1728,7 @@
                                                 if (modalSortBy === 'targetTime_desc') return (b.targetTime || 0) - (a.targetTime || 0);
                                                 return 0;
                                             });
-                                            
                                             if(filteredTasks.length === 0) return <p className="text-center text-slate-400 p-4">ไม่มีข้อมูลในหมวดหมู่นี้</p>;
-                                            
                                             return filteredTasks.map(t => (
                                                 <div key={t.id} className="p-4 rounded-2xl border border-slate-100 flex items-start justify-between bg-slate-50">
                                                     <div className="flex flex-col items-start gap-1">
@@ -1760,9 +1744,7 @@
                                                              t.status === 'customer_submitted' ? 'ลูกค้าส่งแล้ว - รอตรวจ' :
                                                              t.status === 'customer_link_created' ? 'รอลูกค้ากรอกข้อมูล' : 'ร่าง'}
                                                         </span>
-                                                        <div className="font-black text-slate-800 text-sm leading-tight mt-0.5">
-                                                            {t.taskName} 
-                                                        </div>
+                                                        <div className="font-black text-slate-800 text-sm leading-tight mt-0.5">{t.taskName}</div>
                                                         <div className="text-[10px] text-slate-500 uppercase">โปรเจกต์: {t.projectCustomName}</div>
                                                     </div>
                                                     <div className="text-right shrink-0 mt-1">
@@ -1773,7 +1755,6 @@
                                             ))
                                         })()}
 
-                                        {/* Render Finance */}
                                         {viewStatModal === 'finance' && (() => {
                                             if(financeRecords.length === 0) return <p className="text-center text-slate-400 p-4">ไม่มีประวัติการเงิน</p>;
                                             return financeRecords.sort((a,b) => {
@@ -1799,7 +1780,6 @@
                                             ))
                                         })()}
 
-                                        {/* Render Admins */}
                                         {viewStatModal === 'admins' && allAdmins.map(admin => (
                                             <div key={admin.id} className="p-5 rounded-3xl border border-slate-100 bg-slate-50">
                                                 <div className="flex items-center gap-3 mb-3">
@@ -1823,7 +1803,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: ADMIN MANAGEMENT */}
                     {isAdminPanelOpen && (
                         <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
@@ -1850,7 +1829,6 @@
                                             </div>
                                             {currentUserData?.permissions?.canDeleteAnything && (
                                                 <div className="space-y-4">
-                                                    {/* Export Data Zone */}
                                                     <div className="p-6 bg-white rounded-3xl border border-indigo-100 shadow-sm space-y-4">
                                                         <div className="flex items-center gap-3 text-indigo-600 mb-2">
                                                             <Icon name="download-cloud" className="w-6 h-6"/>
@@ -1861,8 +1839,6 @@
                                                             ส่งออกข้อมูลทั้งหมด (แยกชีท)
                                                         </button>
                                                     </div>
-
-                                                    {/* Danger Zone */}
                                                     <div className="p-6 bg-white rounded-3xl border border-red-100 shadow-sm space-y-4">
                                                         <div className="flex items-center gap-3 text-red-600 mb-2">
                                                             <Icon name="alert-triangle" className="w-6 h-6"/>
@@ -1905,7 +1881,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: EDIT/ADD SUB-ADMIN */}
                     {isEditingAdminModalOpen && (
                         <div className="fixed inset-0 z-[160] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in zoom-in-95 overflow-y-auto">
                             <form onSubmit={saveAdmin} className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left my-auto">
@@ -1938,7 +1913,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: CLEAR DATA CONFIRMATION */}
                     {isClearDataOpen && (
                         <div className="fixed inset-0 z-[160] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in zoom-in-95 overflow-y-auto">
                             <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-2 border-red-50 my-auto">
@@ -1961,7 +1935,6 @@
                         </div>
                     )}
 
-                    {/* FINANCE MODAL */}
                     {isFinanceOpen && (
                         <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
@@ -2047,7 +2020,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: ADD PROJECT */}
                     {isAddingProject && (
                         <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("สร้างโปรเจกต์", "สร้างฐานข้อมูลจากฟอร์มนี้?", () => handleAddProject(e)); }} className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 space-y-6 my-auto">
@@ -2065,7 +2037,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: VIEW TASK DATA */}
                     {selectedTask && (
                         <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
@@ -2095,7 +2066,6 @@
                                                     <Icon name="copy" className="w-4 h-4"/> คัดลอกลิงก์ใหม่
                                                 </button>
                                             )}
-
                                             {['customer_submitted', 'draft', 'customer_link_created'].includes(selectedTask.status) && (
                                                 <button onClick={() => {
                                                     setTaskName(selectedTask.taskName);
@@ -2120,7 +2090,6 @@
                         </div>
                     )}
 
-                    {/* MODAL: FILL FORM DATA */}
                     {isFormModalOpen && activeProject && (
                         <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
                             <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
@@ -2133,7 +2102,6 @@
                                         <div className="text-xs text-indigo-500 font-black uppercase mt-1 tracking-widest">{activeProject.title}</div>
                                         {activeProject.description && <p className="text-[11px] text-slate-500 mt-4 whitespace-pre-wrap leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">{activeProject.description}</p>}
                                     </div>
-                                    
                                     {activeProject.fields.map((f, i) => (
                                         <div key={i} className="space-y-2">
                                             <div className="mb-2">
