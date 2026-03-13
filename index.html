@@ -909,12 +909,11 @@
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
-            // 🚀 ฟังก์ชันที่เรียนรู้มาเพื่อแก้ปัญหาการส่งข้อมูลจริง (iFrame POST)
+            // 🚀 ฟังก์ชันการส่งข้อมูลจากโค้ด (11) แบบเป๊ะๆ - Hidden Form & iFrame Submission
             const submitTask = async (task) => {
                 const taskRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id);
                 await taskRef.update({ status: 'sending' });
                 
-                // ใช้ iFrame ที่ซ่อนอยู่เพื่อส่งข้อมูลไปยัง Google Form
                 const iframeName = 'google_submit_iframe_' + task.id;
                 let iframe = document.querySelector(`iframe[name="${iframeName}"]`);
                 if (!iframe) {
@@ -926,11 +925,10 @@
 
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.action = task.url.replace('/viewform', '/formResponse'); // เปลี่ยน URL ให้เป็น endpoint รับค่า
+                form.action = task.url.replace('/viewform', '/formResponse');
                 form.target = iframeName;
                 form.style.display = 'none';
 
-                // นำข้อมูลจาก Task Data ใส่เข้าในฟอร์มเพื่อส่ง
                 Object.entries(task.data).forEach(([key, val]) => {
                     if (Array.isArray(val)) {
                         val.forEach(v => {
@@ -949,11 +947,10 @@
                 
                 try {
                     form.submit();
-                    // เนื่องจาก CORS ตรวจสอบ Response ไม่ได้ จึงรอ 2 วินาทีแล้วปรับเป็น Success
                     await new Promise(r => setTimeout(r, 2000));
                     await taskRef.update({ status: 'success' });
                 } catch (err) {
-                    console.error("Submission error:", err);
+                    console.error("Submission failed:", err);
                     await taskRef.update({ status: 'error' });
                 } finally {
                     if (form.parentNode) document.body.removeChild(form);
@@ -2029,7 +2026,7 @@
                                                 }).map(rec => (
                                                     <div key={rec.id} className="p-4 bg-white border border-slate-100 shadow-sm rounded-3xl flex justify-between items-center group transition-all hover:shadow-md">
                                                         <div className="text-left flex items-start gap-3">
-                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1 ${rec.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}><Icon name={rec.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'} className="w-5 h-5"/></div>
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1 ${rec.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}><Icon name={rec.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'} className="w-4 h-4"/></div>
                                                             <div>
                                                                 <div className="text-[9px] text-slate-400 uppercase tracking-wide">{formatDisplayDate(rec.date)} {formatDisplayTime(rec.date)} • ผู้บันทึก: {rec.createdBy}</div>
                                                                 <div className="text-sm font-black text-slate-800 leading-tight mt-0.5">{rec.customerName}</div>
