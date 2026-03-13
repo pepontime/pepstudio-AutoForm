@@ -17,8 +17,6 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
-    <!-- SheetJS for Excel Export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
@@ -29,23 +27,9 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
         .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); }
         .progress-line-animate { transition: width 1s linear; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.4); }
         
-        /* Glassmorphism for toast */
-        .glass-toast { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-        
-        /* New Loading Animations */
-        @keyframes spin-cw {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        @keyframes spin-ccw {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(-360deg); }
-        }
-        .animate-spin-cw { animation: spin-cw 2s linear infinite; }
-        .animate-spin-ccw { animation: spin-ccw 3s linear infinite; }
-
-        /* Toast Animations */
+        /* Toast Animation */
         @keyframes slideInDown {
             from { transform: translateY(-120%) scale(0.9); opacity: 0; }
             to { transform: translateY(0) scale(1); opacity: 1; }
@@ -56,24 +40,13 @@
         }
         .animate-toast-in { animation: slideInDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         .animate-toast-out { animation: fadeOutUp 0.3s ease-in forwards; }
-
-        /* Striped Button Animation */
-        @keyframes stripe-move {
-            0% { background-position: 0 0; }
-            100% { background-position: 50px 0; }
-        }
-        .btn-striped {
-            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.2) 75%, transparent 75%, transparent);
-            background-size: 30px 30px;
-            animation: stripe-move 1.5s linear infinite;
-        }
     </style>
 </head>
 <body class="text-slate-900 font-bold">
     <div id="root"></div>
 
     <script type="text/babel">
-        // 📘 Firebase Configuration
+        // 📘 Firebase Configuration (Updated)
         const firebaseConfig = {
             apiKey: "AIzaSyBmxTl0YKC1FGNRd4675ELvsZE86p4HlXg",
             authDomain: "pepstudio-autoform.firebaseapp.com",
@@ -93,7 +66,6 @@
         const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
         const MAIN_ADMIN_DEFAULT_USER = "Admin";
-        const DEFAULT_LOGO_URL = "";
 
         // Helper functions for STRICT Local Date and Time
         const getLocalDateString = (d = new Date()) => {
@@ -107,17 +79,15 @@
         // Formatters for strictly Displaying DD/MM/YYYY and 24h Time
         const formatDisplayDate = (d) => {
             if (!d) return '';
-            const dateObj = (d instanceof Date) ? d : (d.toDate ? d.toDate() : new Date(d));
-            return `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear() + 543}`;
+            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
         };
 
         const formatDisplayTime = (d) => {
             if (!d) return '';
-            const dateObj = (d instanceof Date) ? d : (d.toDate ? d.toDate() : new Date(d));
-            return `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
         };
 
-        // Clipboard helper function
+        // Clipboard helper function (fallback support)
         const copyToClipboard = (text, onSuccess) => {
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(onSuccess);
@@ -135,32 +105,6 @@
             }
         };
 
-        // CSV Export Helper Function
-        const downloadCSV = (data, filename) => {
-            if (!data || data.length === 0) return alert('ไม่มีข้อมูลสำหรับดาวน์โหลด');
-            const keys = Object.keys(data[0]);
-            const csvContent = data.map(row => 
-                keys.map(k => {
-                    let val = row[k];
-                    if (val === null || val === undefined) val = '';
-                    return `"${String(val).replace(/"/g, '""')}"`;
-                }).join(",")
-            ).join("\n");
-            
-            const header = keys.join(",");
-            const finalCsv = '\uFEFF' + header + '\n' + csvContent; 
-            
-            const blob = new Blob([finalCsv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `${filename}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-
         // Mapping สิทธิ์ภาษาไทย
         const PERMISSION_LABELS = {
             canManageProjects: "จัดการโปรเจกต์",
@@ -171,7 +115,7 @@
             canDeleteAnything: "ลบข้อมูลทุกอย่าง"
         };
 
-        // Component: Toast
+        // Component: Toast (Premium Capsule Style)
         const Toast = ({ message, type = 'success', onClose }) => {
             const [isExiting, setIsExiting] = useState(false);
             useEffect(() => {
@@ -186,15 +130,15 @@
             }, [isExiting, onClose]);
 
             const styles = {
-                success: "border-green-400/50 text-green-800 glass-toast",
-                error: "border-red-400/50 text-red-800 glass-toast",
-                info: "border-indigo-400/50 text-indigo-800 glass-toast"
+                success: "border-green-500/30 text-green-700 bg-white/90",
+                error: "border-red-500/30 text-red-700 bg-white/90",
+                info: "border-indigo-500/30 text-indigo-700 bg-white/90"
             };
 
             return (
-                <div className={`fixed top-8 left-0 right-0 z-[400] flex justify-center pointer-events-none px-4 ${isExiting ? 'animate-toast-out' : 'animate-toast-in'}`}>
-                    <div className={`pointer-events-auto flex items-center gap-3 px-6 py-3 rounded-full border-[1.5px] shadow-2xl ${styles[type]}`}>
-                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-100/80 text-green-600' : type === 'error' ? 'bg-red-100/80 text-red-600' : type === 'error' ? 'bg-red-100/80 text-red-600' : 'bg-indigo-100/80 text-indigo-600'}`}>
+                <div className={`fixed top-8 left-0 right-0 z-[300] flex justify-center pointer-events-none px-4 ${isExiting ? 'animate-toast-out' : 'animate-toast-in'}`}>
+                    <div className={`pointer-events-auto flex items-center gap-3 px-8 py-3.5 rounded-full backdrop-blur-2xl border shadow-2xl ${styles[type]}`}>
+                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-green-50' : type === 'error' ? 'bg-red-50' : 'bg-indigo-50'}`}>
                             <Icon name={type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'} className="w-4.5 h-4.5" />
                         </div>
                         <span className="text-sm font-black tracking-tight">{message}</span>
@@ -246,30 +190,21 @@
             const [clientFormId, setClientFormId] = useState(() => new URLSearchParams(window.location.search).get('client_form'));
             const [clientTask, setClientTask] = useState(null);
             const [clientProject, setClientProject] = useState(null);
-            const [clientStatus, setClientStatus] = useState('loading'); 
+            const [clientStatus, setClientStatus] = useState('loading'); // loading, ready, success, error, not_found, already_submitted
 
-            // State: User & App Load
+            // State: User & Data
             const [user, setUser] = useState(null);
             const [isLoggedIn, setIsLoggedIn] = useState(false);
-            const [isAppReady, setIsAppReady] = useState(false); 
             const [currentUserData, setCurrentUserData] = useState(null);
             const [loginUser, setLoginUser] = useState('');
             const [loginPass, setLoginPass] = useState('');
             
-            // State: Data
             const [projects, setProjects] = useState([]); 
             const [tasks, setTasks] = useState([]);
             const [allAdmins, setAllAdmins] = useState([]);
             const [financeRecords, setFinanceRecords] = useState([]);
-            const [appSettings, setAppSettings] = useState({ 
-                logoUrl: localStorage.getItem('pepstudio_cached_logo') || '', 
-                siteName: localStorage.getItem('pepstudio_cached_siteName') || 'PepStudio', 
-                mainAdminPass: '', 
-                mainAdminUser: MAIN_ADMIN_DEFAULT_USER 
-            });
+            const [appSettings, setAppSettings] = useState({ logoUrl: '', siteName: 'PepStudio', mainAdminPass: '', mainAdminUser: MAIN_ADMIN_DEFAULT_USER });
             
-            const displayLogo = appSettings.logoUrl || DEFAULT_LOGO_URL;
-
             // State: UI (Navigation & Panels)
             const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'workspace'
             const [activeProjectId, setActiveProjectId] = useState(null);
@@ -286,23 +221,15 @@
             const [clearOptions, setClearOptions] = useState({ tasks: false, projects: false, finance: false, admins: false });
             
             const [viewStatModal, setViewStatModal] = useState(null);
-            const [selectedProjectDetail, setSelectedProjectDetail] = useState(null);
-            const [editProjectData, setEditProjectData] = useState(null); 
 
-            // Floating Scroll Logic
-            const [showFloatingButton, setShowFloatingButton] = useState(false);
-            const createQueueRef = useRef(null);
-            const timerRef = useRef(null);
-
-            // State: Inputs & Validation
+            // State: Inputs (Main Workspace)
             const [inputUrl, setInputUrl] = useState('');
             const [inputHtml, setInputHtml] = useState('');
             const [inputCustomName, setInputCustomName] = useState('');
             const [taskName, setTaskName] = useState('');
             const [fieldValues, setFieldValues] = useState({});
-            const [fieldErrors, setFieldErrors] = useState({}); // เก็บสถานะ Error ของแต่ละช่อง
             const [scheduleDate, setScheduleDate] = useState(getLocalDateString());
-            const [scheduleTime, setScheduleTime] = useState('00:00:00'); 
+            const [scheduleTime, setScheduleTime] = useState('00:00:00'); // Set default to 00:00:00 rigidly
             
             const [currentTime, setCurrentTime] = useState(new Date());
             const [selectedTask, setSelectedTask] = useState(null);
@@ -310,13 +237,6 @@
 
             const [isFormModalOpen, setIsFormModalOpen] = useState(false);
             const [generatedLink, setGeneratedLink] = useState(null); 
-            
-            // Sorting States
-            const [taskSortBy, setTaskSortBy] = useState('createdAt_desc'); 
-            const [modalSortBy, setModalSortBy] = useState('createdAt_desc');
-            const [financeSortBy, setFinanceSortBy] = useState('date_desc');
-            const [projectDetailSortBy, setProjectDetailSortBy] = useState('createdAt_desc');
-            const [projectSortBy, setProjectSortBy] = useState('createdAt_desc'); // เพิ่มตัวแปรนี้
 
             const [financeForm, setFinanceForm] = useState({ type: 'income', amount: '', note: '', customerName: '' });
             const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -381,70 +301,7 @@
                 return Object.values(unique).sort((a,b) => (b.date || 0) - (a.date || 0));
             }, [financeRecords, tasks, financeForm.customerName]);
 
-            // === Initial Load & LocalStorage ===
-            useEffect(() => {
-                const savedUser = localStorage.getItem('pepstudio_user');
-                if (savedUser) {
-                    try {
-                        setCurrentUserData(JSON.parse(savedUser));
-                        setIsLoggedIn(true);
-                    } catch(e) {}
-                }
-                
-                auth.signInAnonymously().catch(console.error);
-                const unsubscribe = auth.onAuthStateChanged(setUser);
-                return () => unsubscribe();
-            }, []);
-
-            // === Firebase Main App Logic ===
-            useEffect(() => {
-                if (appSettings.siteName) document.title = appSettings.siteName;
-                if (appSettings.logoUrl) {
-                    let link = document.querySelector("link[rel*='icon']") || document.createElement('link');
-                    link.rel = 'shortcut icon'; link.href = appSettings.logoUrl;
-                    document.getElementsByTagName('head')[0].appendChild(link);
-                }
-            }, [appSettings]);
-
-            useEffect(() => {
-                if (clientFormId) return; 
-                if (!user) return;
-                
-                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
-                
-                const unsubSettings = publicDataRef.onSnapshot(snap => {
-                    if (snap.exists) {
-                        const newSettings = snap.data().settings;
-                        setAppSettings(prev => ({ ...prev, ...newSettings }));
-                        if(newSettings.logoUrl) localStorage.setItem('pepstudio_cached_logo', newSettings.logoUrl);
-                        if(newSettings.siteName) localStorage.setItem('pepstudio_cached_siteName', newSettings.siteName);
-                    }
-                    setTimeout(() => setIsAppReady(true), 400); 
-                });
-
-                if (!isLoggedIn) return () => unsubSettings();
-
-                const unsubAdmins = publicDataRef.collection('admins').onSnapshot(snap => {
-                    const admins = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    setAllAdmins(admins);
-                    if (currentUserData?.role !== 'main') {
-                        const updatedSelf = admins.find(a => a.username === currentUserData?.username);
-                        if (updatedSelf?.status === 'blocked') { 
-                            alert('บัญชีถูกระงับการใช้งาน'); 
-                            localStorage.removeItem('pepstudio_user');
-                            setIsLoggedIn(false); 
-                        }
-                    }
-                });
-
-                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() }))));
-                const unsubTasks = publicDataRef.collection('tasks').onSnapshot(snap => setTasks(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), targetTime: doc.data().targetTime?.toDate(), createdAt: doc.data().createdAt?.toDate() }))));
-                const unsubFinance = publicDataRef.collection('finance').onSnapshot(snap => setFinanceRecords(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date?.toDate() }))));
-
-                return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); unsubFinance(); };
-            }, [user, isLoggedIn, clientFormId, currentUserData?.username]);
-
-            // === Customer Link Workflow Logic ===
+            // === Customer Link Workflow Logic (Runs independently of Admin Dashboard) ===
             useEffect(() => {
                 if (clientFormId && user) {
                     const taskRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(clientFormId);
@@ -458,20 +315,97 @@
                                 db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(tData.projectId).get().then(pDoc => {
                                     setClientProject({ id: pDoc.id, ...pDoc.data() });
                                     setFieldValues(tData.data || {});
-                                    setFieldErrors({}); // Reset errors
                                     setClientStatus('ready');
                                 });
                             }
                         } else {
                             setClientStatus('not_found');
                         }
-                        setIsAppReady(true);
-                    }).catch(e => {
-                        setClientStatus('error');
-                        setIsAppReady(true);
-                    });
+                    }).catch(e => setClientStatus('error'));
                 }
             }, [clientFormId, user]);
+
+            const submitClientForm = async (e) => {
+                e.preventDefault();
+                // Client Validation
+                const missingFields = clientProject.fields.filter(f => {
+                    if (!f.required) return false;
+                    const val = fieldValues[f.entryId];
+                    if (Array.isArray(val)) return val.length === 0;
+                    return !val || val.toString().trim() === '';
+                });
+                
+                if (missingFields.length > 0) {
+                    return alert('กรุณากรอกข้อมูลที่มีเครื่องหมาย * (สีแดง) ให้ครบถ้วน');
+                }
+
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(clientFormId).update({
+                        data: fieldValues,
+                        status: 'customer_submitted',
+                        submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setClientStatus('success');
+                } catch (error) {
+                    alert('เกิดข้อผิดพลาดในการบันทึก: ' + error.message);
+                }
+            };
+
+            // === Firebase Main App Logic ===
+            useEffect(() => {
+                if (appSettings.siteName) document.title = appSettings.siteName;
+                if (appSettings.logoUrl) {
+                    let link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+                    link.rel = 'shortcut icon'; link.href = appSettings.logoUrl;
+                    document.getElementsByTagName('head')[0].appendChild(link);
+                }
+            }, [appSettings]);
+
+            useEffect(() => {
+                // Check Session for Auto Login
+                const savedUser = localStorage.getItem('pepstudio_user');
+                if (savedUser) {
+                    try {
+                        const parsedUser = JSON.parse(savedUser);
+                        setCurrentUserData(parsedUser);
+                        setIsLoggedIn(true);
+                    } catch(e) {}
+                }
+
+                auth.signInAnonymously().catch(console.error);
+                const unsubscribe = auth.onAuthStateChanged(setUser);
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user || clientFormId) return; // If client mode, skip admin listeners to save reads
+                const publicDataRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                
+                const unsubSettings = publicDataRef.onSnapshot(snap => {
+                    if (snap.exists) setAppSettings(prev => ({ ...prev, ...snap.data().settings }));
+                });
+
+                if (!isLoggedIn) return () => unsubSettings();
+
+                const unsubAdmins = publicDataRef.collection('admins').onSnapshot(snap => {
+                    const admins = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setAllAdmins(admins);
+                    if (currentUserData?.role !== 'main') {
+                        const updatedSelf = admins.find(a => a.username === currentUserData.username);
+                        if (updatedSelf?.status === 'blocked') { 
+                            alert('บัญชีถูกระงับการใช้งาน'); 
+                            localStorage.removeItem('pepstudio_user');
+                            setIsLoggedIn(false); 
+                        }
+                    }
+                });
+
+                const unsubProjects = publicDataRef.collection('projects').onSnapshot(snap => setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+                const unsubTasks = publicDataRef.collection('tasks').onSnapshot(snap => setTasks(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), targetTime: doc.data().targetTime?.toDate(), createdAt: doc.data().createdAt?.toDate() }))));
+                const unsubFinance = publicDataRef.collection('finance').onSnapshot(snap => setFinanceRecords(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date?.toDate() }))));
+
+                return () => { unsubSettings(); unsubAdmins(); unsubProjects(); unsubTasks(); unsubFinance(); };
+            }, [user, isLoggedIn, clientFormId, currentUserData?.role, currentUserData?.username]);
 
             useEffect(() => {
                 if(clientFormId) return;
@@ -482,234 +416,17 @@
                 return () => clearInterval(timer);
             }, [tasks, clientFormId]);
 
-            // === Scroll Floating Button Logic ===
-            const checkFormInView = useCallback(() => {
-                if (!createQueueRef.current) return false;
-                const rect = createQueueRef.current.getBoundingClientRect();
-                const viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight);
-                // Consider "in view" if at least some part of the header is visible
-                return !(rect.bottom < 0 || rect.top - viewHeight >= 0);
-            }, []);
-
-            useEffect(() => {
-                if (!activeProjectId || clientFormId) {
-                    setShowFloatingButton(false);
-                    if (timerRef.current) clearTimeout(timerRef.current);
-                    return;
-                }
-
-                // Initial Visibility Check
-                const handleScroll = () => {
-                    if (checkFormInView()) {
-                        setShowFloatingButton(false);
-                        if (timerRef.current) clearTimeout(timerRef.current);
-                    }
-                };
-
-                // Logic: เมื่อกดเลือกโปรเจกต์ ถ้ามองไม่เห็นฟอร์มสร้างคิว ให้เริ่มนับถอยหลัง 1.5 วิเพื่อโชว์ปุ่ม
-                if (!checkFormInView()) {
-                    if (timerRef.current) clearTimeout(timerRef.current);
-                    timerRef.current = setTimeout(() => {
-                        if (!checkFormInView()) {
-                            setShowFloatingButton(true);
-                        }
-                    }, 1500);
-                } else {
-                    setShowFloatingButton(false);
-                }
-
-                window.addEventListener('scroll', handleScroll);
-                return () => {
-                    window.removeEventListener('scroll', handleScroll);
-                    if (timerRef.current) clearTimeout(timerRef.current);
-                };
-            }, [activeProjectId, checkFormInView, clientFormId]);
-
-            const scrollToCreateQueue = () => {
-                if (createQueueRef.current) {
-                    createQueueRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            };
-
             // Effect: Global Scroll Lock when ANY modal is open
             useEffect(() => {
                 const isAnyModalOpen = 
                     isSettingInitialPass || confirmState.isOpen || isMenuOpen || !!viewStatModal || 
                     isAdminPanelOpen || isEditingAdminModalOpen || isClearDataOpen || isFinanceOpen || 
-                    isAddingProject || isFormModalOpen || !!selectedTask || !!generatedLink || !!selectedProjectDetail || !!editProjectData;
+                    isAddingProject || isFormModalOpen || !!selectedTask || !!generatedLink;
 
                 if (isAnyModalOpen) { document.body.style.overflow = 'hidden'; } 
                 else { document.body.style.overflow = 'auto'; }
                 return () => { document.body.style.overflow = 'auto'; };
-            }, [isSettingInitialPass, confirmState.isOpen, isMenuOpen, viewStatModal, isAdminPanelOpen, isEditingAdminModalOpen, isClearDataOpen, isFinanceOpen, isAddingProject, isFormModalOpen, selectedTask, generatedLink, selectedProjectDetail, editProjectData]);
-
-            // ==========================================
-            // Validation Logic (ปรับปรุงให้แสดงข้อความตรงกับเงื่อนไข Google Form)
-            // ==========================================
-            const validateField = (f, val) => {
-                if (!val || (Array.isArray(val) && val.length === 0) || val.toString().trim() === '') {
-                    return f.required ? 'กรุณากรอกข้อมูลในช่องนี้' : null;
-                }
-                
-                if (f.validation) {
-                    const { type, subType, args, errorMsg } = f.validation;
-                    const strVal = val.toString().trim();
-                    const errMsg = errorMsg && errorMsg.trim() !== "" ? errorMsg : null;
-
-                    if (type === 1) { // 1 = Number
-                        const num = parseFloat(strVal);
-                        const target = args && args.length > 0 ? parseFloat(args[0]) : 0;
-                        if (isNaN(num)) return errorMsg || 'ต้องเป็นตัวเลขเท่านั้น';
-                        if (subType === 1 && !(num > target)) return errMsg || `ต้องมากกว่า ${target}`;
-                        if (subType === 2 && !(num >= target)) return errMsg || `ต้องมากกว่าหรือเท่ากับ ${target}`;
-                        if (subType === 3 && !(num < target)) return errMsg || `ต้องน้อยกว่า ${target}`;
-                        if (subType === 4 && !(num <= target)) return errMsg || `ต้องน้อยกว่าหรือเท่ากับ ${target}`;
-                        if (subType === 5 && !(num === target)) return errMsg || `ต้องเท่ากับ ${target}`;
-                        if (subType === 6 && !(num !== target)) return errMsg || `ต้องไม่เท่ากับ ${target}`;
-                        if (subType === 9 && args.length > 1 && !(num >= parseFloat(args[0]) && num <= parseFloat(args[1]))) return errMsg || `ต้องอยู่ระหว่าง ${args[0]} และ ${args[1]}`;
-                    } else if (type === 2) { // 2 = Text
-                        if (subType === 100 && !strVal.includes(args[0])) return errMsg || `ต้องมีคำว่า "${args[0]}"`;
-                        if (subType === 101 && strVal.includes(args[0])) return errMsg || `ต้องไม่มีคำว่า "${args[0]}"`;
-                        if (subType === 102) { // อีเมล
-                            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                            if (!emailRegex.test(strVal)) return errorMsg || 'อีเมลไม่ถูกต้อง';
-                        }
-                        if (subType === 103) { // URL
-                            const urlRegex = /^(http|https):\/\/[^ "]+$/;
-                            if (!urlRegex.test(strVal)) return errorMsg || 'URL ไม่ถูกต้อง';
-                        }
-                    } else if (type === 4) { // 4 = Regex
-                        try {
-                            const regex = new RegExp(args[0]);
-                            if (subType === 299 && !regex.test(strVal)) return errMsg || 'รูปแบบข้อมูลไม่ถูกต้อง';
-                            if (subType === 298 && !regex.test(strVal)) return errMsg || 'ข้อมูลไม่ตรงกับรูปแบบที่กำหนด';
-                            if (subType === 300 && regex.test(strVal)) return errMsg || 'รูปแบบข้อมูลไม่ถูกต้อง';
-                            if (subType === 301 && regex.test(strVal)) return errMsg || 'ข้อมูลไม่ควรตรงกับรูปแบบนี้';
-                        } catch(e) {}
-                    } else if (type === 6) { // 6 = Length
-                        const limit = parseInt(args[0], 10);
-                        if (subType === 202 && strVal.length < limit) return errorMsg || `ต้องมีอย่างน้อย ${limit} ตัวอักษร`;
-                        if (subType === 203 && strVal.length > limit) return errorMsg || `ต้องไม่เกิน ${limit} ตัวอักษร`;
-                    }
-                }
-                return null;
-            };
-
-            const handleValidationBeforeSubmit = (project, values) => {
-                let errors = {};
-                let hasError = false;
-                project.fields.forEach(f => {
-                    const err = validateField(f, values[f.entryId]);
-                    if (err) {
-                        errors[f.entryId] = err;
-                        hasError = true;
-                    }
-                });
-                setFieldErrors(errors);
-                return !hasError;
-            };
-
-            // กดส่งจากหน้าลูกค้า
-            const submitClientForm = async (e) => {
-                e.preventDefault();
-                if (!handleValidationBeforeSubmit(clientProject, fieldValues)) {
-                    alert('กรุณาตรวจสอบและแก้ไขข้อมูลให้ถูกต้องตามที่ระบบแจ้งเตือน (สีแดง)');
-                    return;
-                }
-
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(clientFormId).update({
-                        data: fieldValues, status: 'customer_submitted', submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    setClientStatus('success');
-                } catch (error) { alert('เกิดข้อผิดพลาดในการบันทึก: ' + error.message); }
-            };
-
-            // --- Export Excel Full Feature ---
-            const handleExportExcel = (exportType) => {
-                if (!window.XLSX) return alert("ไม่สามารถโหลดไลบรารีส่งออกไฟล์ได้");
-                
-                try {
-                    const wb = XLSX.utils.book_new();
-                    
-                    const createTasksSheet = () => {
-                        const filterData = tasks.filter(t => {
-                            if(exportType === 'pending') return ['pending', 'draft', 'customer_link_created', 'customer_submitted'].includes(t.status);
-                            if(exportType === 'success') return t.status === 'success';
-                            return true;
-                        });
-                        return filterData.map(t => ({
-                            "ID คิวงาน": t.id,
-                            "ชื่อคิวงาน": t.taskName,
-                            "โปรเจกต์": t.projectCustomName || t.projectTitle,
-                            "สถานะ": t.status === 'success' ? 'สำเร็จ' : t.status === 'pending' ? 'รอส่ง' : t.status === 'customer_submitted' ? 'ลูกค้าส่งแล้ว' : t.status === 'customer_link_created' ? 'รอลูกค้ากรอก' : 'ร่าง',
-                            "เพิ่มเมื่อ": t.createdAt ? `${formatDisplayDate(t.createdAt)} ${formatDisplayTime(t.createdAt)}` : '',
-                            "กำหนดส่ง": t.targetTime ? `${formatDisplayDate(t.targetTime)} ${formatDisplayTime(t.targetTime)}` : '',
-                            "สร้างโดย": t.createdBy,
-                            "ข้อมูลในฟอร์ม": Object.entries(t.data || {}).map(([k,v]) => `${k}:${Array.isArray(v)?v.join(','):v}`).join(' | ')
-                        }));
-                    };
-
-                    const createFinanceSheet = () => {
-                        return financeRecords.map(f => ({
-                            "ID รายการ": f.id,
-                            "วันที่": f.date ? `${formatDisplayDate(f.date)} ${formatDisplayTime(f.date)}` : '',
-                            "ประเภท": f.type === 'income' ? 'รายรับ' : 'รายจ่าย',
-                            "จำนวนเงิน": f.amount,
-                            "ชื่อลูกค้า/บุคคล": f.customerName,
-                            "รายละเอียด": f.note,
-                            "บันทึกโดย": f.createdBy
-                        }));
-                    };
-
-                    const createProjectsSheet = () => {
-                        return projects.map(p => ({
-                            "ID โปรเจกต์": p.id,
-                            "ชื่อโปรเจกต์": p.title,
-                            "ชื่อเรียก": p.customName,
-                            "สร้างโดย": p.createdBy,
-                            "จำนวนฟิลด์": p.fields?.length || 0,
-                            "URL": p.url
-                        }));
-                    };
-
-                    const createAdminsSheet = () => {
-                        return allAdmins.map(a => ({
-                            "ID": a.id,
-                            "Username": a.username,
-                            "รหัสผ่าน": a.password,
-                            "สถานะ": a.status === 'active' ? 'ใช้งานปกติ' : 'ถูกระงับ',
-                            "จัดการโปรเจกต์": a.permissions?.canManageProjects ? 'ใช่' : 'ไม่',
-                            "จัดการคิวงาน": a.permissions?.canManageTasks ? 'ใช่' : 'ไม่',
-                            "จัดการการเงิน": a.permissions?.canManageFinance ? 'ใช่' : 'ไม่',
-                            "ลบข้อมูลได้": a.permissions?.canDeleteAnything ? 'ใช่' : 'ไม่'
-                        }));
-                    };
-
-                    if (exportType === 'all') {
-                        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(createTasksSheet()), "คิวงานทั้งหมด");
-                        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(createFinanceSheet()), "ประวัติการเงิน");
-                        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(createProjectsSheet()), "โปรเจกต์");
-                        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(createAdminsSheet()), "ทีมงาน");
-                        XLSX.writeFile(wb, `PepStudio_AllData_Export.xlsx`);
-                        showToast('ดาวน์โหลดข้อมูลทั้งหมด (แยกชีท) สำเร็จ');
-                    } else {
-                        let data = [];
-                        let sheetName = "";
-                        if (exportType === 'tasks' || exportType === 'pending' || exportType === 'success') { data = createTasksSheet(); sheetName = "คิวงาน"; }
-                        else if (exportType === 'finance') { data = createFinanceSheet(); sheetName = "การเงิน"; }
-                        else if (exportType === 'projects') { data = createProjectsSheet(); sheetName = "โปรเจกต์"; }
-                        else if (exportType === 'admins') { data = createAdminsSheet(); sheetName = "ทีมงาน"; }
-                        
-                        if(data.length === 0) return alert("ไม่มีข้อมูลสำหรับส่งออก");
-                        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), sheetName);
-                        XLSX.writeFile(wb, `PepStudio_${exportType}_Export.xlsx`);
-                        showToast('ดาวน์โหลดไฟล์ Excel สำเร็จ');
-                    }
-                } catch (error) {
-                    alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel');
-                }
-            };
+            }, [isSettingInitialPass, confirmState.isOpen, isMenuOpen, viewStatModal, isAdminPanelOpen, isEditingAdminModalOpen, isClearDataOpen, isFinanceOpen, isAddingProject, isFormModalOpen, selectedTask, generatedLink]);
 
             // --- Handlers ---
             const handleLogin = async (e) => {
@@ -769,7 +486,7 @@
 
             const updateSettings = async (newSettings) => {
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').set({ settings: newSettings }, { merge: true });
-                showToast('บันทึกข้อมูลหน้าเว็บสำเร็จ');
+                showToast('บันทึกข้อมูลสำเร็จ');
             };
 
             const handleClearDataSubmit = async () => {
@@ -789,86 +506,33 @@
                 } catch (error) { alert('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + error.message); }
             };
 
-            // Smart Parser: ระบบกวาดข้อมูลอัจฉริยะ (ดึงคำอธิบาย + Validation ทะลุอักขระพิเศษ)
             const handleAddProject = async (e) => {
                 if(e) e.preventDefault();
                 try {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(inputHtml, 'text/html');
-                    const scriptWithData = Array.from(doc.querySelectorAll('script')).find(s => s.textContent && s.textContent.includes('FB_PUBLIC_LOAD_DATA_'));
+                    const scriptWithData = Array.from(doc.querySelectorAll('script')).find(s => s.innerText.includes('FB_PUBLIC_LOAD_DATA_'));
                     if (!scriptWithData) throw new Error('ไม่พบข้อมูลฟอร์ม');
-                    
-                    const textContent = scriptWithData.textContent;
-                    const prefix = 'FB_PUBLIC_LOAD_DATA_ = ';
-                    const startIndex = textContent.indexOf(prefix) + prefix.length;
-                    
-                    let jsonStr = "";
-                    let bracketCount = 0;
-                    let inString = false;
-                    let escape = false;
-                    let started = false;
-
-                    // วนลูปอ่านทีละตัวอักษรเพื่อป้องกันบั๊กจาก ; หรือ ] ที่อยู่ในคำอธิบาย
-                    for (let i = startIndex; i < textContent.length; i++) {
-                        const char = textContent[i];
-                        if (!started && char !== '[') continue;
-                        if (!started && char === '[') started = true;
-
-                        if (inString) {
-                            if (escape) escape = false;
-                            else if (char === '\\') escape = true;
-                            else if (char === '"') inString = false;
-                        } else {
-                            if (char === '"') inString = true;
-                            else if (char === '[') bracketCount++;
-                            else if (char === ']') bracketCount--;
-                        }
-                        jsonStr += char;
-                        
-                        // ถ้านับวงเล็บปิดครบถ้วน แสดงว่าจบอาร์เรย์ของข้อมูลฟอร์มแล้ว
-                        if (started && bracketCount === 0 && !inString) break;
-                    }
-                    
-                    if (!jsonStr) throw new Error('ไม่สามารถดึงโครงสร้างข้อมูลได้');
-                    
-                    const data = JSON.parse(jsonStr);
-                    const formDescription = data[1]?.[0] || ""; 
-                    
+                    const regex = /FB_PUBLIC_LOAD_DATA_ = (.*?);/s;
+                    const data = JSON.parse(scriptWithData.innerText.match(regex)[1]);
                     const fields = data[1][1].map(item => {
-                        const itemData = item[4]?.[0];
-                        const entryIdSuffix = itemData?.[0]; 
-                        const options = itemData?.[1]?.map(opt => opt[0]) || [];
-                        const isReq = Boolean(itemData?.[2]); 
-                        const description = item[2] || ""; 
-                        
-                        let validation = null;
-                        // ดึงกฎการตรวจสอบ (ถ้ามี)
-                        if (itemData && itemData.length > 4 && itemData[4] && itemData[4].length > 0) {
-                            const vRule = itemData[4][0];
-                            validation = {
-                                type: vRule[0], 
-                                subType: vRule[1],
-                                args: vRule[2] || [], 
-                                errorMsg: vRule[3] || ""
-                            };
-                        }
-
+                        const entryIdSuffix = item[4]?.[0]?.[0]; 
+                        const options = item[4]?.[0]?.[1]?.map(opt => opt[0]) || [];
+                        const isReq = Boolean(item[4]?.[0]?.[2]); 
                         if (!entryIdSuffix) return null;
                         return { 
                             label: item[1], entryId: `entry.${entryIdSuffix}`, options: options.length > 0 ? options : null, 
-                            type: item[3] === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text'), required: isReq,
-                            description: description, validation: validation
+                            type: item[3] === 4 ? 'checkbox' : (options.length > 0 ? 'select' : 'text'), required: isReq
                         };
                     }).filter(f => f !== null);
-                    
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').add({
-                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", description: formDescription, customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        title: data[1][8] || "ฟอร์มไม่มีชื่อ", customName: inputCustomName || "ไม่มีชื่อเรียก", url: inputUrl, fields, createdBy: currentUserData.username
                     });
-                    
                     setIsAddingProject(false); setInputHtml(''); setInputUrl(''); setInputCustomName(''); showToast('เพิ่มโปรเจกต์สำเร็จ');
                 } catch (err) { alert(err.message); }
             };
 
+            // Admin Main Form Check & Save
             const saveTask = async (isDraft = false) => {
                 if (!activeProject) return;
                 const target = new Date(`${scheduleDate}T${scheduleTime}`);
@@ -887,7 +551,8 @@
                     showToast(isDraft ? 'บันทึกแบบร่างสำเร็จ' : 'เพิ่มรายการเข้าคิวส่งแล้ว');
                 }
 
-                setTaskName(''); setFieldValues({}); setFieldErrors({});
+                // Reset ค่ากลับเป็นค่าเริ่มต้น
+                setTaskName(''); setFieldValues({}); 
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
@@ -905,7 +570,8 @@
                 const link = `${window.location.origin}${window.location.pathname}?client_form=${docRef.id}`;
                 setGeneratedLink(link); 
                 
-                setTaskName(''); setFieldValues({}); setFieldErrors({});
+                // Reset form
+                setTaskName(''); setFieldValues({}); 
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
@@ -940,7 +606,6 @@
                 const current = fieldValues[entryId] || [];
                 const updated = current.includes(option) ? current.filter(o => o !== option) : [...current, option];
                 setFieldValues({ ...fieldValues, [entryId]: updated });
-                if (fieldErrors[entryId]) setFieldErrors({...fieldErrors, [entryId]: null});
             };
 
             const getTaskIcon = (status) => {
@@ -948,165 +613,51 @@
                 if (status === 'draft') return { name: 'file-edit', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400' };
                 if (status === 'customer_link_created') return { name: 'link', color: 'bg-emerald-100 text-emerald-600', dot: 'bg-emerald-400' };
                 if (status === 'customer_submitted') return { name: 'inbox', color: 'bg-indigo-100 text-indigo-600', dot: 'bg-indigo-500' };
-                return { name: 'timer', color: 'bg-amber-100 text-amber-600', dot: 'bg-amber-500' }; 
+                return { name: 'timer', color: 'bg-amber-100 text-amber-600', dot: 'bg-amber-500' }; // pending
             };
-
-            // Project Edit Logic
-            const handleUpdateProject = async (e) => {
-                e.preventDefault();
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(editProjectData.id).update({
-                        customName: editProjectData.customName,
-                        url: editProjectData.url
-                    });
-                    setEditProjectData(null);
-                    showToast('อัปเดตโปรเจกต์สำเร็จ');
-                } catch (err) {
-                    alert('เกิดข้อผิดพลาด: ' + err.message);
-                }
-            };
-
-            const handleDeleteProject = () => {
-                triggerConfirm("ลบโปรเจกต์", `ลบ ${editProjectData.title} แบบถาวร?`, async () => {
-                    try {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(editProjectData.id).delete();
-                        if(activeProjectId === editProjectData.id) {
-                            setActiveProjectId(null);
-                            setFieldValues({});
-                            setTaskName('');
-                        }
-                        setEditProjectData(null);
-                        showToast('ลบโปรเจกต์แล้ว');
-                    } catch (err) {
-                        alert(err.message);
-                    }
-                }, 'danger');
-            };
-
-            // ==========================================
-            // RENDER: SPLASH SCREEN (LOADING)
-            // ==========================================
-            if (!isAppReady) {
-                return (
-                    <div className="min-h-screen flex flex-col items-center justify-center bg-white relative overflow-hidden font-bold">
-                        <div className="flex flex-col items-center justify-center z-10 w-full animate-in fade-in zoom-in duration-300">
-                            {/* Animated Logo Container */}
-                            <div className="relative mb-8">
-                                {/* Outer spinning ring (Clockwise) */}
-                                <div className="absolute -inset-4 rounded-full border-[3px] border-indigo-50 border-t-indigo-500 animate-spin-cw"></div>
-                                
-                                {/* Logo (Counter-Clockwise) */}
-                                <div className="animate-spin-ccw relative z-10">
-                                    {displayLogo ? (
-                                        <img src={displayLogo} className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-full shadow-lg border-2 border-white" />
-                                    ) : (
-                                        <div className="w-24 h-24 sm:w-28 sm:h-28 bg-white rounded-full shadow-lg border-2 border-slate-50 flex items-center justify-center text-indigo-500">
-                                            <Icon name="loader-2" className="w-10 h-10" />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="text-indigo-500 font-black tracking-widest text-xs uppercase">
-                                กำลังโหลดข้อมูล
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
 
             // ==========================================
             // RENDER: CLIENT FORM VIEW (No Login Needed)
             // ==========================================
             if (clientFormId) {
-                if (clientStatus === 'error' || clientStatus === 'not_found') return (
-                    <div className="min-h-screen bg-slate-50 flex flex-col gap-4 items-center justify-center font-black text-red-500 text-center p-6 animate-in zoom-in-95">
-                        <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><Icon name="file-question" className="w-10 h-10"/></div>
-                        <h2 className="text-xl">ไม่พบข้อมูลคิวงาน หรือลิงก์ไม่ถูกต้อง/หมดอายุแล้ว</h2>
-                    </div>
-                );
-                if (clientStatus === 'already_submitted') return (
-                    <div className="min-h-screen bg-slate-50 flex flex-col gap-4 items-center justify-center font-black text-slate-800 text-center p-6 animate-in zoom-in-95">
-                        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center"><Icon name="check-circle" className="w-10 h-10"/></div>
-                        <h2 className="text-xl">ข้อมูลนี้ถูกส่งไปแล้ว ขอบคุณครับ</h2>
-                    </div>
-                );
-                if (clientStatus === 'success') return (
-                    <div className="min-h-screen bg-slate-50 flex flex-col gap-4 items-center justify-center font-black text-slate-800 text-center p-6 animate-in zoom-in-95">
-                        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center"><Icon name="check" className="w-10 h-10"/></div>
-                        <h2 className="text-xl">บันทึกข้อมูลสำเร็จ!</h2>
-                        <span className="text-sm text-slate-500 font-bold">ผู้ดูแลระบบกำลังดำเนินการตรวจสอบ</span>
-                    </div>
-                );
+                if (clientStatus === 'loading') return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-black text-slate-400 animate-pulse">กำลังโหลดข้อมูล...</div>;
+                if (clientStatus === 'error' || clientStatus === 'not_found') return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-black text-red-500">ไม่พบข้อมูลคิวงาน หรือลิงก์ไม่ถูกต้อง/หมดอายุแล้ว</div>;
+                if (clientStatus === 'already_submitted') return <div className="min-h-screen bg-slate-50 flex flex-col gap-4 items-center justify-center font-black text-slate-800"><div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center"><Icon name="check-circle" className="w-8 h-8"/></div>ข้อมูลนี้ถูกส่งไปแล้ว ขอบคุณครับ</div>;
+                if (clientStatus === 'success') return <div className="min-h-screen bg-slate-50 flex flex-col gap-4 items-center justify-center font-black text-slate-800"><div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center"><Icon name="check" className="w-8 h-8"/></div>บันทึกข้อมูลสำเร็จ!<br/><span className="text-xs text-slate-500 font-bold">ผู้ดูแลระบบกำลังดำเนินการตรวจสอบ</span></div>;
 
                 return (
                     <div className="min-h-screen bg-slate-900 py-10 px-4 font-bold overflow-y-auto">
                         <div className="max-w-xl mx-auto bg-white rounded-[40px] shadow-2xl p-8 sm:p-10 text-left animate-in slide-in-from-bottom-4">
-                            <div className="flex items-start gap-4 border-b pb-6 mb-6">
-                                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 mt-1"><Icon name="clipboard-list"/></div>
+                            <div className="flex items-center gap-4 border-b pb-6 mb-6">
+                                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0"><Icon name="clipboard-list"/></div>
                                 <div>
                                     <h1 className="text-xl font-black text-slate-800">กรอกข้อมูลบริการ</h1>
                                     <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{clientTask?.taskName} • {clientProject?.customName}</p>
-                                    {clientProject?.description && <p className="text-xs text-slate-500 mt-3 whitespace-pre-wrap leading-relaxed">{clientProject.description}</p>}
                                 </div>
                             </div>
                             
                             <form onSubmit={submitClientForm} className="space-y-6">
                                 {clientProject?.fields.map((f, i) => (
                                     <div key={i} className="space-y-2">
-                                        <div className="mb-2">
-                                            <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
-                                                {f.label}
-                                                {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
-                                            </label>
-                                            {f.description && <div className="text-[10px] text-slate-400 px-1 mt-0.5 whitespace-pre-wrap leading-tight">{f.description}</div>}
-                                        </div>
+                                        <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
+                                            {f.label}
+                                            {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
+                                        </label>
                                         {f.type === 'checkbox' ? (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 {f.options.map((opt, oi) => (
-                                                    <label key={oi} className={`flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all border ${fieldErrors[f.entryId] ? 'border-red-300 bg-red-50/30' : 'border-transparent has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30'}`}>
+                                                    <label key={oi} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30 border border-transparent">
                                                         <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 font-bold" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
                                                         <span className="text-xs font-bold text-slate-700">{opt}</span>
                                                     </label>
                                                 ))}
                                             </div>
                                         ) : f.options ? (
-                                            <select 
-                                                value={fieldValues[f.entryId] || ''} 
-                                                onChange={e => {
-                                                    setFieldValues({...fieldValues, [f.entryId]: e.target.value});
-                                                    if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
-                                                }} 
-                                                onBlur={e => {
-                                                    const err = validateField(f, e.target.value);
-                                                    if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
-                                                }}
-                                                className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold transition-all text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`}
-                                            >
+                                            <select value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold focus:ring-2 ring-indigo-100 transition-all text-slate-700">
                                                 <option value="">เลือกคำตอบ</option>
                                                 {f.options.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                             </select>
-                                        ) : (
-                                            <input 
-                                                type="text" 
-                                                value={fieldValues[f.entryId] || ''} 
-                                                onChange={e => {
-                                                    setFieldValues({...fieldValues, [f.entryId]: e.target.value});
-                                                    if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
-                                                }} 
-                                                onBlur={e => {
-                                                    const err = validateField(f, e.target.value);
-                                                    if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
-                                                }}
-                                                className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:bg-white transition-all font-bold text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`} 
-                                                placeholder={`กรอก ${f.label}`} 
-                                            />
-                                        )}
-                                        {/* แจ้งเตือน Validation Error */}
-                                        {fieldErrors[f.entryId] && (
-                                            <div className="text-red-500 text-[10px] mt-1.5 flex items-center gap-1 font-bold animate-in slide-in-from-top-1">
-                                                <Icon name="alert-circle" className="w-3 h-3"/> {fieldErrors[f.entryId]}
-                                            </div>
-                                        )}
+                                        ) : <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all font-bold text-slate-700" placeholder={`กรอก ${f.label}`} />}
                                     </div>
                                 ))}
                                 <div className="pt-6 border-t border-slate-100 mt-8">
@@ -1129,13 +680,10 @@
                             <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-600 rounded-full blur-[150px]"></div>
                         </div>
                         {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
-                        <form onSubmit={handleLogin} className="w-full max-w-md p-10 bg-white rounded-[48px] shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 text-center">
+                        <form onSubmit={handleLogin} className="w-full max-w-md p-10 glass-panel rounded-[48px] shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 text-center">
                             <div className="mb-10">
-                                {displayLogo ? (
-                                    <img src={displayLogo} className="w-24 h-24 mx-auto mb-6 object-cover rounded-full border-4 border-slate-100 shadow-xl" />
-                                ) : (
-                                    <div className="w-24 h-24 mx-auto mb-6 bg-white rounded-full border-4 border-slate-100 shadow-xl"></div>
-                                )}
+                                {appSettings.logoUrl ? <img src={appSettings.logoUrl} className="w-24 h-24 mx-auto mb-6 object-cover rounded-full border-4 border-white shadow-xl" /> : 
+                                <div className="w-20 h-20 bg-indigo-600 rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl"><Icon name="shield-check" className="text-white w-10 h-10" /></div>}
                                 <h1 className="text-3xl font-black text-slate-800 tracking-tight font-bold">{appSettings.siteName}</h1>
                                 <p className="text-slate-400 text-sm mt-2 font-bold tracking-wide">ยืนยันตัวตนเพื่อเข้าถึงระบบ</p>
                             </div>
@@ -1155,66 +703,10 @@
                     {toastState.show && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(p => ({ ...p, show: false }))} />}
                     <ConfirmPopup isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))} type={confirmState.type} />
 
-                    {/* SMART FLOATING BUTTON (Mobile Only) */}
-                    {showFloatingButton && (
-                        <div className="fixed bottom-6 right-6 z-[80] sm:hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
-                            <button 
-                                onClick={scrollToCreateQueue}
-                                className="btn-striped flex items-center gap-3 bg-indigo-600 text-white px-6 py-4 rounded-full shadow-[0_15px_30px_rgba(79,70,229,0.4)] border-2 border-white active:scale-90 transition-all font-black"
-                            >
-                                <Icon name="arrow-down" className="w-5 h-5" />
-                                <span>สร้างคิวส่ง</span>
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Edit Project Modal */}
-                    {editProjectData && (
-                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-4 border-slate-50 my-auto">
-                                <div className="flex justify-between items-center border-b pb-4">
-                                    <h2 className="text-xl font-black flex items-center gap-3"><Icon name="settings" className="text-indigo-600"/> จัดการโปรเจกต์</h2>
-                                    <button type="button" onClick={() => setEditProjectData(null)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
-                                </div>
-                                
-                                <form onSubmit={handleUpdateProject} className="space-y-4">
-                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-2">
-                                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">รายละเอียดระบบ</div>
-                                        <div className="flex flex-col gap-1.5">
-                                            <div className="flex justify-between text-xs font-bold"><span className="text-slate-500">ผู้เพิ่มโปรเจกต์:</span> <span className="text-indigo-600">{editProjectData.createdBy || 'Unknown'}</span></div>
-                                            <div className="flex justify-between text-xs font-bold"><span className="text-slate-500">วันที่เพิ่มเข้าระบบ:</span> <span className="text-indigo-600">{formatDisplayDate(editProjectData.createdAt)} {formatDisplayTime(editProjectData.createdAt)}</span></div>
-                                            <div className="flex justify-between text-xs font-bold"><span className="text-slate-500">ชื่อฟอร์มต้นฉบับ:</span> <span className="text-slate-400 truncate max-w-[150px]">{editProjectData.title}</span></div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">ชื่อโปรเจกต์ (ตั้งเอง)</label>
-                                        <input type="text" value={editProjectData.customName} onChange={e => setEditProjectData({...editProjectData, customName: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1 block">URL ลิงก์ฟอร์ม</label>
-                                        <input type="text" value={editProjectData.url} onChange={e => setEditProjectData({...editProjectData, url: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-indigo-100 font-bold" required />
-                                    </div>
-                                    
-                                    <div className="pt-4 border-t flex flex-row gap-3 mt-6">
-                                        {currentUserData?.permissions?.canDeleteAnything && (
-                                            <button type="button" onClick={handleDeleteProject} className="shrink-0 sm:flex-1 bg-red-50 text-red-600 p-3.5 sm:py-3.5 sm:px-4 rounded-2xl font-black hover:bg-red-100 transition-all flex items-center justify-center gap-2">
-                                                <Icon name="trash-2" className="w-5 h-5 sm:w-4 sm:h-4"/> 
-                                                <span className="hidden sm:inline">ลบโปรเจกต์</span>
-                                            </button>
-                                        )}
-                                        <button type="submit" className="flex-1 sm:flex-[2] bg-indigo-600 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95">
-                                            บันทึกการแก้ไข
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Link Generated Modal */}
                     {generatedLink && (
-                        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 modal-overlay animate-in zoom-in-95 overflow-y-auto">
-                            <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 space-y-6 text-center border-4 border-emerald-50 my-auto">
+                        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 modal-overlay animate-in zoom-in-95">
+                            <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 space-y-6 text-center border-4 border-emerald-50">
                                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                     <Icon name="link" className="w-8 h-8" />
                                 </div>
@@ -1233,8 +725,8 @@
 
                     {/* Initial Password Modal */}
                     {isSettingInitialPass && (
-                        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 modal-overlay overflow-y-auto">
-                            <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 text-center space-y-6 animate-in zoom-in-95 my-auto">
+                        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 modal-overlay">
+                            <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 text-center space-y-6 animate-in zoom-in-95">
                                 <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto"><Icon name="key" /></div>
                                 <h2 className="text-2xl font-black">ตั้งรหัสผ่านแอดมินหลัก</h2>
                                 <input type="password" id="initPassInput" placeholder="กำหนดรหัสผ่านใหม่" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" />
@@ -1247,12 +739,8 @@
                         {/* HEADER & NAVIGATION (MINIMAL HAMBURGER MENU) */}
                         <div className="flex justify-between items-center mb-10 w-full relative z-50">
                             {/* Left: Profile & Logo */}
-                            <div onClick={() => setActiveTab('dashboard')} className="flex items-center gap-3 sm:gap-5 cursor-pointer hover:opacity-80 active:scale-95 transition-all">
-                                {displayLogo ? (
-                                    <img src={displayLogo} className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-full shadow-lg border-2 border-white" />
-                                ) : (
-                                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full shadow-sm border-2 border-slate-100"></div>
-                                )}
+                            <div className="flex items-center gap-3 sm:gap-5">
+                                {appSettings.logoUrl ? <img src={appSettings.logoUrl} className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-full shadow-lg border-2 border-white" /> : <div className="p-3 sm:p-4 bg-indigo-600 rounded-full shadow-xl shadow-indigo-100"><Icon name="zap" className="text-white w-5 h-5 sm:w-6 sm:h-6" /></div>}
                                 <div>
                                     <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight font-bold">{appSettings.siteName}</h1>
                                     <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest">{currentUserData?.username} • {formatDisplayTime(currentTime)}</span>
@@ -1273,7 +761,7 @@
                                     <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-[24px] shadow-2xl border border-slate-100 p-3 animate-in slide-in-from-top-2 origin-top-right flex flex-col gap-1 z-[100]">
                                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 pt-2 pb-1">มุมมอง</div>
                                         <button onClick={() => { setActiveTab('dashboard'); setIsMenuOpen(false); }} className={`flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl font-black transition-all ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>
-                                            <Icon name="pie-chart" className="w-5 h-5"/> หน้าหลัก
+                                            <Icon name="pie-chart" className="w-5 h-5"/> แดชบอร์ด
                                         </button>
                                         <button onClick={() => { setActiveTab('workspace'); setIsMenuOpen(false); }} className={`flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl font-black transition-all ${activeTab === 'workspace' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>
                                             <Icon name="layout-grid" className="w-5 h-5"/> พื้นที่ทำงาน
@@ -1309,459 +797,275 @@
                         </div>
 
                         {/* --- DASHBOARD TAB --- */}
-                        <div className={activeTab === 'dashboard' ? "block space-y-8 animate-in fade-in duration-300" : "hidden"}>
-                            {/* Top Stats Cards */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                                <div onClick={() => setViewStatModal('projects')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group">
-                                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="folder" /></div>
-                                    <div className="text-3xl font-black text-slate-800">{dashboardStats.totalProjects}</div>
-                                    <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">โปรเจกต์ทั้งหมด <Icon name="search" className="w-3 h-3 opacity-50"/></div>
+                        {activeTab === 'dashboard' && (
+                            <div className="space-y-8 animate-in slide-in-from-bottom-4">
+                                {/* Top Stats Cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                                    <div onClick={() => setViewStatModal('projects')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group">
+                                        <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="folder" /></div>
+                                        <div className="text-3xl font-black text-slate-800">{dashboardStats.totalProjects}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">โปรเจกต์ทั้งหมด <Icon name="search" className="w-3 h-3 opacity-50"/></div>
+                                    </div>
+                                    <div onClick={() => setViewStatModal('tasks')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-blue-200 transition-all group">
+                                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="layers" /></div>
+                                        <div className="text-3xl font-black text-slate-800">{dashboardStats.totalTasks}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">คิวงานทั้งหมด <Icon name="search" className="w-3 h-3 opacity-50"/></div>
+                                    </div>
+                                    <div onClick={() => setViewStatModal('pending')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-amber-200 transition-all group">
+                                        <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="clock" /></div>
+                                        <div className="text-3xl font-black text-slate-800">{dashboardStats.pendingTasks + dashboardStats.draftTasks}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">รอส่ง / ร่าง <Icon name="search" className="w-3 h-3 opacity-50"/></div>
+                                    </div>
+                                    <div onClick={() => setViewStatModal('success')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-green-200 transition-all group">
+                                        <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="check-circle-2" /></div>
+                                        <div className="text-3xl font-black text-slate-800">{dashboardStats.successTasks}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">ส่งสำเร็จแล้ว <Icon name="search" className="w-3 h-3 opacity-50"/></div>
+                                    </div>
                                 </div>
-                                <div onClick={() => setViewStatModal('tasks')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-blue-200 transition-all group">
-                                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="layers" /></div>
-                                    <div className="text-3xl font-black text-slate-800">{dashboardStats.totalTasks}</div>
-                                    <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">คิวงานทั้งหมด <Icon name="search" className="w-3 h-3 opacity-50"/></div>
-                                </div>
-                                <div onClick={() => setViewStatModal('pending')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-amber-200 transition-all group">
-                                    <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="clock" /></div>
-                                    <div className="text-3xl font-black text-slate-800">{dashboardStats.pendingTasks + dashboardStats.draftTasks}</div>
-                                    <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">รอส่ง / ร่าง <Icon name="search" className="w-3 h-3 opacity-50"/></div>
-                                </div>
-                                <div onClick={() => setViewStatModal('success')} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md hover:border-green-200 transition-all group">
-                                    <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-all"><Icon name="check-circle-2" /></div>
-                                    <div className="text-3xl font-black text-slate-800">{dashboardStats.successTasks}</div>
-                                    <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1">ส่งสำเร็จแล้ว <Icon name="search" className="w-3 h-3 opacity-50"/></div>
-                                </div>
-                            </div>
 
-                            {/* Financial & Overview Section (Visible to everyone) */}
-                            <div className="grid md:grid-cols-3 gap-6">
-                                <div onClick={() => setViewStatModal('finance')} className="md:col-span-2 bg-slate-900 rounded-[40px] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden cursor-pointer hover:shadow-indigo-500/20 transition-all group">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-20 -mt-20"></div>
-                                    <h3 className="text-sm font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2 mb-8">
-                                        <Icon name="pie-chart" className="w-4 h-4"/> ภาพรวมการเงิน <Icon name="external-link" className="w-3 h-3 ml-2 opacity-50 group-hover:opacity-100 transition-all"/>
-                                    </h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative z-10">
-                                        <div>
-                                            <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายรับทั้งหมด</div>
-                                            <div className="text-3xl md:text-4xl font-black text-green-400">+{dashboardStats.totalIncome.toLocaleString()}</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายจ่ายทั้งหมด</div>
-                                            <div className="text-3xl md:text-4xl font-black text-red-400">-{dashboardStats.totalExpense.toLocaleString()}</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">ยอดคงเหลือสุทธิ</div>
-                                            <div className={`text-3xl md:text-4xl font-black ${dashboardStats.balance >= 0 ? 'text-white' : 'text-red-300'}`}>{dashboardStats.balance.toLocaleString()}</div>
+                                {/* Financial & Overview Section (Visible to everyone) */}
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    <div className="md:col-span-2 bg-slate-900 rounded-[40px] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-20 -mt-20"></div>
+                                        <h3 className="text-sm font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2 mb-8"><Icon name="pie-chart" className="w-4 h-4"/> ภาพรวมการเงิน</h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative z-10">
+                                            <div>
+                                                <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายรับทั้งหมด</div>
+                                                <div className="text-3xl md:text-4xl font-black text-green-400">+{dashboardStats.totalIncome.toLocaleString()}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">รายจ่ายทั้งหมด</div>
+                                                <div className="text-3xl md:text-4xl font-black text-red-400">-{dashboardStats.totalExpense.toLocaleString()}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-slate-400 text-[11px] mb-2 font-bold uppercase tracking-wider">ยอดคงเหลือสุทธิ</div>
+                                                <div className={`text-3xl md:text-4xl font-black ${dashboardStats.balance >= 0 ? 'text-white' : 'text-red-300'}`}>{dashboardStats.balance.toLocaleString()}</div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div onClick={() => setViewStatModal('admins')} className="bg-white border border-slate-100 rounded-[40px] p-8 shadow-sm flex flex-col justify-center items-center text-center cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group">
-                                    <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 text-indigo-600 group-hover:scale-110 transition-all">
-                                        <Icon name="users" className="w-8 h-8" />
+                                    <div onClick={() => setViewStatModal('admins')} className="bg-white border border-slate-100 rounded-[40px] p-8 shadow-sm flex flex-col justify-center items-center text-center cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group">
+                                        <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 text-indigo-600 group-hover:scale-110 transition-all">
+                                            <Icon name="users" className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">ทีมงานระบบ <Icon name="external-link" className="w-4 h-4 text-slate-400"/></h3>
+                                        <p className="text-slate-500 mt-2 text-sm">แอดมินจำนวน {allAdmins.length} บัญชี ที่ดูแลระบบร่วมกัน</p>
                                     </div>
-                                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">ทีมงานระบบ <Icon name="external-link" className="w-4 h-4 text-slate-400"/></h3>
-                                    <p className="text-slate-500 mt-2 text-sm">แอดมินจำนวน {allAdmins.length} บัญชี ที่ดูแลระบบร่วมกัน</p>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* --- WORKSPACE TAB --- */}
-                        <div className={activeTab === 'workspace' ? "block grid lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-300" : "hidden"}>
-                            {/* รายชื่อโปรเจกต์ (ปรับปรุงให้เรียงลำดับได้) */}
-                            <div className="lg:col-span-3 space-y-3">
-                                <div className="flex justify-between items-center px-2">
-                                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">รายชื่อโปรเจกต์</h3>
-                                    <div className="flex items-center gap-1">
-                                        <select value={projectSortBy} onChange={e => setProjectSortBy(e.target.value)} className="text-[9px] font-bold text-slate-400 bg-transparent outline-none cursor-pointer hover:text-indigo-600 transition-colors">
-                                            <option value="createdAt_desc">ล่าสุดก่อน</option>
-                                            <option value="createdAt_asc">เก่าสุดก่อน</option>
-                                            <option value="title_asc">ตามชื่อ (ก-ฮ)</option>
-                                        </select>
+                        {activeTab === 'workspace' && (
+                            <div className="grid lg:grid-cols-12 gap-8 items-start animate-in slide-in-from-right-8">
+                                <div className="lg:col-span-3 space-y-3">
+                                    <div className="flex justify-between items-center px-2">
+                                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">รายชื่อโปรเจกต์</h3>
                                         {currentUserData?.permissions?.canManageProjects && (
-                                            <button onClick={() => setIsAddingProject(true)} className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg transition-all ml-1" title="เพิ่มโปรเจกต์ใหม่">
+                                            <button onClick={() => setIsAddingProject(true)} className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg transition-all" title="เพิ่มโปรเจกต์ใหม่">
                                                 <Icon name="plus" className="w-4 h-4" />
                                             </button>
                                         )}
                                     </div>
-                                </div>
-                                <div className="max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar space-y-3">
-                                    {projects.length === 0 && <p className="text-xs text-slate-400 px-2 italic">ยังไม่มีโปรเจกต์</p>}
-                                    {projects.slice().sort((a,b) => {
-                                        if (projectSortBy === 'createdAt_desc') return (b.createdAt || 0) - (a.createdAt || 0);
-                                        if (projectSortBy === 'createdAt_asc') return (a.createdAt || 0) - (b.createdAt || 0);
-                                        if (projectSortBy === 'title_asc') return a.title.localeCompare(b.title);
-                                        return 0;
-                                    }).map(p => (
-                                        <div key={p.id} className="relative group">
-                                            <button onClick={() => { setActiveProjectId(p.id); setEditingTaskId(null); setFieldValues({}); setFieldErrors({}); setTaskName(''); }} className={`w-full text-left p-4 pr-12 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
-                                                <div className="flex flex-col truncate">
-                                                    <span className="font-bold truncate text-sm">{p.title}</span>
-                                                    <span className={`text-[10px] truncate ${activeProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>{p.customName}</span>
-                                                </div>
-                                            </button>
-                                            {currentUserData?.permissions?.canManageProjects && (
-                                                <button onClick={(e) => { e.stopPropagation(); setEditProjectData(p); }} className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 rounded-xl ${activeProjectId === p.id ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`} title="ตั้งค่าโปรเจกต์">
-                                                    <Icon name="settings" className="w-5 h-5" />
+                                    <div className="max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar space-y-3">
+                                        {projects.length === 0 && <p className="text-xs text-slate-400 px-2 italic">ยังไม่มีโปรเจกต์</p>}
+                                        {projects.map(p => (
+                                            <div key={p.id} className="relative group">
+                                                <button onClick={() => { setActiveProjectId(p.id); setEditingTaskId(null); setFieldValues({}); setTaskName(''); }} className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center justify-between ${activeProjectId === p.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
+                                                    <div className="flex flex-col truncate pr-4">
+                                                        <span className="font-bold truncate text-sm">{p.title}</span>
+                                                        <span className={`text-[10px] truncate ${activeProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>{p.customName}</span>
+                                                    </div>
+                                                    <Icon name="chevron-right" className={`w-4 h-4 shrink-0 transition-all ${activeProjectId === p.id ? 'opacity-100' : 'opacity-0'}`} />
                                                 </button>
-                                            )}
+                                                {currentUserData?.permissions?.canDeleteAnything && <button onClick={() => triggerConfirm("ลบโปรเจกต์", `ลบ ${p.title}?`, () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('projects').doc(p.id).delete(); showToast('ลบโปรเจกต์แล้ว'); }, 'danger')} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-red-400 opacity-0 xl:group-hover:opacity-100 hover:bg-red-50 rounded-lg"><Icon name="trash-2" className="w-4 h-4" /></button>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-9 space-y-8">
+                                    {activeProject ? (
+                                        <div className="grid md:grid-cols-2 gap-8 items-start">
+                                            {/* Create Task Form */}
+                                            <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8">
+                                                {editingTaskId && (
+                                                    <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-2xl flex justify-between items-center mb-6 animate-in fade-in">
+                                                        <div className="flex items-center gap-2">
+                                                            <Icon name="edit" className="w-5 h-5"/>
+                                                            <span className="font-bold text-sm">กำลังแก้ไข / ตรวจสอบคิวงาน</span>
+                                                        </div>
+                                                        <button type="button" onClick={() => {
+                                                            setEditingTaskId(null); setTaskName(''); setFieldValues({}); setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
+                                                        }} className="text-xs bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100 font-black">ยกเลิก</button>
+                                                    </div>
+                                                )}
+
+                                                <form onSubmit={(e) => { 
+                                                    e.preventDefault(); 
+                                                    
+                                                    // ตรวจสอบว่ามีการกรอกข้อมูลหรือไม่
+                                                    const hasAnyData = Object.values(fieldValues).some(v => {
+                                                        if (Array.isArray(v)) return v.length > 0;
+                                                        return v !== null && v !== undefined && v.toString().trim() !== '';
+                                                    });
+                                                    
+                                                    if (!hasAnyData) {
+                                                        showToast('กรุณากรอกข้อมูลฟอร์มอย่างน้อย 1 ช่อง', 'error');
+                                                        setIsFormModalOpen(true);
+                                                        return;
+                                                    }
+                                                    
+                                                    // ตรวจสอบข้อมูลบังคับกรอก
+                                                    const missingFields = activeProject.fields.filter(f => {
+                                                        if (!f.required) return false;
+                                                        const val = fieldValues[f.entryId];
+                                                        if (Array.isArray(val)) return val.length === 0;
+                                                        return !val || val.toString().trim() === '';
+                                                    });
+                                                    
+                                                    if (missingFields.length > 0) {
+                                                        showToast('กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วน', 'error');
+                                                        setIsFormModalOpen(true);
+                                                        return;
+                                                    }
+
+                                                    const isManager = currentUserData?.permissions?.canManageTasks;
+                                                    triggerConfirm(editingTaskId ? "อัปเดตข้อมูล" : (isManager ? "เพิ่มคิวส่ง" : "บันทึกร่างข้อมูล"), editingTaskId ? "ยืนยันการอัปเดตและบันทึกข้อมูล?" : (isManager ? "ยืนยันการเพิ่มรายการเข้าคิวส่ง?" : "ยืนยันการบันทึกข้อมูลเพื่อรอตรวจสอบ?"), () => saveTask(!isManager));
+                                                }} className="space-y-6">
+                                                    <h2 className="font-black text-xl flex items-center gap-3 border-b pb-4"><Icon name={editingTaskId ? 'edit' : 'edit-3'} className="text-indigo-600"/> {editingTaskId ? 'แก้ไขข้อมูล' : (currentUserData?.permissions?.canManageTasks ? 'สร้างคิวส่ง' : 'กรอกข้อมูล')}</h2>
+                                                    <div className="space-y-4">
+                                                        <input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} placeholder="ชื่อเรียก (เช่น จองให้คุณหญิง)..." className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
+                                                            <input type="time" step="1" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold text-center" required />
+                                                        </div>
+                                                        <div className="pt-2 text-left">
+                                                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2 block mb-2">ข้อมูลฟอร์ม</label>
+                                                            <button type="button" onClick={() => setIsFormModalOpen(true)} className={`w-full p-5 border-2 border-dashed rounded-2xl font-black transition-all flex items-center justify-center gap-2 ${Object.keys(fieldValues).length > 0 ? 'border-indigo-200 text-indigo-600 hover:bg-indigo-50' : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 hover:border-slate-300'}`}>
+                                                                <Icon name="file-edit" className="w-6 h-6"/>
+                                                                คลิกเพื่อกรอกข้อมูล
+                                                                {Object.keys(fieldValues).filter(k => {
+                                                                    const v = fieldValues[k];
+                                                                    return Array.isArray(v) ? v.length > 0 : (v && v.toString().trim() !== '');
+                                                                }).length > 0 && <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-full text-[10px] ml-2 shadow-sm">{Object.keys(fieldValues).filter(k => {
+                                                                    const v = fieldValues[k];
+                                                                    return Array.isArray(v) ? v.length > 0 : (v && v.toString().trim() !== '');
+                                                                }).length} ข้อมูล</span>}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex gap-2 sm:gap-3 pt-2">
+                                                        <button type="submit" className={`flex-[2] text-white font-black py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-sm sm:text-base ${editingTaskId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                                                            {editingTaskId ? 'อัปเดต และเข้าคิวส่ง' : (currentUserData?.permissions?.canManageTasks ? 'เพิ่มเข้าคิวระบบ' : 'บันทึกข้อมูล (ร่าง)')}
+                                                        </button>
+                                                        
+                                                        {!editingTaskId && (
+                                                            <button type="button" onClick={handleCreateClientLink} className="flex-[1.5] bg-emerald-50 text-emerald-600 font-black py-4 rounded-2xl shadow-sm border border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all flex flex-col items-center justify-center leading-tight hover:shadow-md">
+                                                                <Icon name="link" className="w-5 h-5 mb-0.5"/>
+                                                                <span className="text-[10px] uppercase tracking-wider hidden sm:block">สร้างลิงก์ให้ลูกค้า</span>
+                                                                <span className="text-[10px] uppercase tracking-wider sm:hidden">ส่งลิงก์ลูกค้า</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </form>
+                                            </div>
+
+                                            {/* Monitoring Area */}
+                                            <div className="space-y-4">
+                                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">สถานะงานในคิว</h3>
+                                                <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar pb-10">
+                                                    {tasks.filter(t => t.projectId === activeProjectId).length === 0 && <p className="text-sm text-slate-400 px-2">ไม่มีคิวงานในโปรเจกต์นี้</p>}
+                                                    {tasks.filter(t => t.projectId === activeProjectId).sort((a,b) => b.targetTime - a.targetTime).map(task => {
+                                                        const tIcon = getTaskIcon(task.status);
+                                                        return (
+                                                            <div key={task.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all cursor-pointer" onClick={() => currentUserData?.permissions?.canViewDetails && setSelectedTask(task)}>
+                                                                <div className="p-5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+                                                                        <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center ${tIcon.color}`}>
+                                                                            <Icon name={tIcon.name} className="w-5 h-5"/>
+                                                                        </div>
+                                                                        <div className="text-left overflow-hidden min-w-[100px]">
+                                                                            <div className="font-bold text-slate-700 text-sm flex items-center gap-2 truncate">
+                                                                                <span className="truncate">{task.taskName}</span>
+                                                                                <span className={`w-2 h-2 rounded-full shrink-0 ${tIcon.dot} ${['pending', 'customer_link_created'].includes(task.status) ? 'animate-pulse' : ''}`} title={task.status}></span>
+                                                                            </div>
+                                                                            {task.status === 'customer_link_created' ? <span className="text-[9px] text-emerald-500 uppercase tracking-widest font-black">รอลูกค้ากรอกข้อมูล</span> : 
+                                                                             task.status === 'customer_submitted' ? <span className="text-[9px] text-indigo-500 uppercase tracking-widest font-black">ลูกค้าส่งแล้ว - รอตรวจ</span> :
+                                                                             task.status === 'draft' ? <span className="text-[9px] text-slate-400 uppercase tracking-widest">รอแอดมินอนุมัติ</span> : 
+                                                                             task.status === 'pending' && <div className="text-[10px] text-amber-600 animate-pulse font-black">ส่งใน {getCountdown(task.targetTime)}</div>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 shrink-0 pl-2">
+                                                                        <div className="text-[9px] text-slate-400 font-mono text-right leading-tight hidden sm:block">{formatDisplayDate(task.targetTime)}<br/>{formatDisplayTime(task.targetTime)}</div>
+                                                                        {['draft', 'customer_submitted'].includes(task.status) && currentUserData?.permissions?.canManageTasks && 
+                                                                            <button onClick={(e) => { e.stopPropagation(); triggerConfirm("อนุมัติส่งคิว", "เปลี่ยนสถานะเป็นคิวส่งจริง?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).update({ status: 'pending' })); }} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all" title="อนุมัติ"><Icon name="check" className="w-4 h-4" /></button>}
+                                                                        {currentUserData?.permissions?.canDeleteAnything && <button onClick={(e) => { e.stopPropagation(); triggerConfirm("ลบรายการ", "ลบ?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).delete(); showToast('ลบแล้ว'); }, 'danger') }} className="p-2 text-slate-200 hover:text-red-500 transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="h-1.5 w-full bg-slate-50"><div className="h-full progress-line-animate" style={{ width: `${task.status === 'pending' ? Math.min(100, Math.max(0, (1 - (task.targetTime - currentTime) / (task.targetTime - task.createdAt)) * 100)) : 100}%`, backgroundColor: task.status === 'success' ? '#10b981' : task.status === 'customer_submitted' ? '#6366f1' : task.status === 'customer_link_created' ? '#34d399' : task.status === 'draft' ? '#94a3b8' : '#f59e0b' }}></div></div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
-                                    ))}
+                                    ) : <div className="bg-white rounded-[48px] border-4 border-dashed border-slate-100 p-16 md:p-32 text-center text-slate-300"><Icon name="mouse-pointer-2" className="w-10 h-10 opacity-20 mx-auto mb-6" /><p className="font-black uppercase tracking-widest">เลือกโปรเจกต์จากด้านซ้าย</p></div>}
                                 </div>
                             </div>
-
-                            <div className="lg:col-span-9 space-y-8">
-                                {activeProject ? (
-                                    <div className="grid md:grid-cols-2 gap-8 items-start">
-                                        {/* Create Task Form */}
-                                        <div ref={createQueueRef} className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8 scroll-mt-6">
-                                            {editingTaskId && (
-                                                <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-2xl flex justify-between items-center mb-6 animate-in fade-in">
-                                                    <div className="flex items-center gap-2">
-                                                        <Icon name="edit" className="w-5 h-5"/>
-                                                        <span className="font-bold text-sm">กำลังแก้ไข / ตรวจสอบคิวงาน</span>
-                                                    </div>
-                                                    <button type="button" onClick={() => {
-                                                        setEditingTaskId(null); setTaskName(''); setFieldValues({}); setFieldErrors({}); setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
-                                                    }} className="text-xs bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100 font-black">ยกเลิก</button>
-                                                </div>
-                                            )}
-
-                                            <form onSubmit={(e) => { 
-                                                e.preventDefault(); 
-                                                
-                                                const hasAnyData = Object.values(fieldValues).some(v => {
-                                                    if (Array.isArray(v)) return v.length > 0;
-                                                    return v !== null && v !== undefined && v.toString().trim() !== '';
-                                                });
-                                                
-                                                if (!hasAnyData) {
-                                                    showToast('กรุณากรอกข้อมูลฟอร์มอย่างน้อย 1 ช่อง', 'error');
-                                                    setIsFormModalOpen(true);
-                                                    return;
-                                                }
-                                                
-                                                // ตรวจสอบความถูกต้อง (Validation) ก่อนเพิ่มคิว
-                                                if (!handleValidationBeforeSubmit(activeProject, fieldValues)) {
-                                                    setIsFormModalOpen(true);
-                                                    showToast('กรุณาแก้ไขข้อมูลฟอร์มให้ถูกต้องตามที่ไฮไลท์สีแดง', 'error');
-                                                    return;
-                                                }
-
-                                                const isManager = currentUserData?.permissions?.canManageTasks;
-                                                triggerConfirm(editingTaskId ? "อัปเดตข้อมูล" : (isManager ? "เพิ่มคิวส่ง" : "บันทึกร่างข้อมูล"), editingTaskId ? "ยืนยันการอัปเดตและบันทึกข้อมูล?" : (isManager ? "ยืนยันการเพิ่มรายการเข้าคิวส่ง?" : "ยืนยันการบันทึกข้อมูลเพื่อรอตรวจสอบ?"), () => saveTask(!isManager));
-                                            }} className="space-y-6">
-                                                <h2 className="font-black text-xl flex items-center gap-3 border-b pb-4"><Icon name={editingTaskId ? 'edit' : 'edit-3'} className="text-indigo-600"/> {editingTaskId ? 'แก้ไขข้อมูล' : (currentUserData?.permissions?.canManageTasks ? 'สร้างคิวส่ง' : 'กรอกข้อมูล')}</h2>
-                                                <div className="space-y-4">
-                                                    <input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} placeholder="ชื่อเรียก (เช่น จองให้คุณหญิง)..." className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 font-bold" required />
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
-                                                        <input type="time" step="1" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full px-3 py-3 bg-slate-50 border-none rounded-2xl outline-none font-bold text-center" required />
-                                                    </div>
-                                                    <div className="pt-2 text-left">
-                                                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2 block mb-2">ข้อมูลฟอร์ม</label>
-                                                        <button type="button" onClick={() => setIsFormModalOpen(true)} className={`w-full p-5 border-2 border-dashed rounded-2xl font-black transition-all flex items-center justify-center gap-2 ${Object.keys(fieldValues).length > 0 ? (Object.keys(fieldErrors).length > 0 ? 'border-red-200 text-red-500 hover:bg-red-50' : 'border-indigo-200 text-indigo-600 hover:bg-indigo-50') : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 hover:border-slate-300'}`}>
-                                                            <Icon name={Object.keys(fieldErrors).length > 0 ? "alert-circle" : "file-edit"} className="w-6 h-6"/>
-                                                            {Object.keys(fieldErrors).length > 0 ? 'มีข้อผิดพลาดในฟอร์ม คลิกเพื่อแก้ไข' : 'คลิกเพื่อกรอกข้อมูล'}
-                                                            {Object.keys(fieldValues).filter(k => {
-                                                                const v = fieldValues[k];
-                                                                return Array.isArray(v) ? v.length > 0 : (v && v.toString().trim() !== '');
-                                                            }).length > 0 && <span className={`${Object.keys(fieldErrors).length > 0 ? 'bg-red-500' : 'bg-indigo-600'} text-white px-2.5 py-1 rounded-full text-[10px] ml-2 shadow-sm`}>{Object.keys(fieldValues).filter(k => {
-                                                                const v = fieldValues[k];
-                                                                return Array.isArray(v) ? v.length > 0 : (v && v.toString().trim() !== '');
-                                                            }).length} ข้อมูล</span>}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div className="flex gap-2 sm:gap-3 pt-2">
-                                                    <button type="submit" className={`flex-[2] text-white font-black py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-sm sm:text-base ${editingTaskId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                                                        {editingTaskId ? 'อัปเดต และเข้าคิวส่ง' : (currentUserData?.permissions?.canManageTasks ? 'เพิ่มเข้าคิวระบบ' : 'บันทึกข้อมูล (ร่าง)')}
-                                                    </button>
-                                                    
-                                                    {!editingTaskId && (
-                                                        <button type="button" onClick={handleCreateClientLink} className="flex-[1.5] bg-emerald-50 text-emerald-600 font-black py-4 rounded-2xl shadow-sm border border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all flex flex-col items-center justify-center leading-tight hover:shadow-md">
-                                                            <Icon name="link" className="w-5 h-5 mb-0.5"/>
-                                                            <span className="text-[10px] uppercase tracking-wider hidden sm:block">สร้างลิงก์ให้ลูกค้า</span>
-                                                            <span className="text-[10px] uppercase tracking-wider sm:hidden">ส่งลิงก์ลูกค้า</span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </form>
-                                        </div>
-
-                                        {/* Monitoring Area */}
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center px-2 pb-2 border-b border-slate-50">
-                                                <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">จำนวนรายการทั้งหมด {tasks.filter(t => t.projectId === activeProjectId).length} รายการ</h3>
-                                                <select value={taskSortBy} onChange={e => setTaskSortBy(e.target.value)} className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 ring-indigo-100 cursor-pointer shadow-sm">
-                                                    <option value="createdAt_desc">เพิ่มล่าสุด</option>
-                                                    <option value="createdAt_asc">เพิ่มเก่าสุด</option>
-                                                    <option value="targetTime_asc">กำหนดส่งเร็วสุด</option>
-                                                    <option value="targetTime_desc">กำหนดส่งช้าสุด</option>
-                                                </select>
-                                            </div>
-                                            <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar pb-10">
-                                                {tasks.filter(t => t.projectId === activeProjectId).length === 0 && <p className="text-sm text-slate-400 px-2">ไม่มีคิวงานในโปรเจกต์นี้</p>}
-                                                {tasks.filter(t => t.projectId === activeProjectId).sort((a,b) => {
-                                                    if (taskSortBy === 'createdAt_desc') return (b.createdAt || 0) - (a.createdAt || 0);
-                                                    if (taskSortBy === 'createdAt_asc') return (a.createdAt || 0) - (b.createdAt || 0);
-                                                    if (taskSortBy === 'targetTime_asc') return (a.targetTime || 0) - (b.targetTime || 0);
-                                                    if (taskSortBy === 'targetTime_desc') return (b.targetTime || 0) - (a.targetTime || 0);
-                                                    return 0;
-                                                }).map(task => {
-                                                    const tIcon = getTaskIcon(task.status);
-                                                    return (
-                                                        <div key={task.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all cursor-pointer" onClick={() => currentUserData?.permissions?.canViewDetails && setSelectedTask(task)}>
-                                                            <div className="p-5 flex items-center justify-between">
-                                                                <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
-                                                                    <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center ${tIcon.color}`}>
-                                                                        <Icon name={tIcon.name} className="w-5 h-5"/>
-                                                                    </div>
-                                                                    <div className="text-left overflow-hidden min-w-[100px]">
-                                                                        <div className="flex items-center gap-1.5 mb-1">
-                                                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tIcon.dot} ${['pending', 'customer_link_created'].includes(task.status) ? 'animate-pulse' : ''}`} title={task.status}></span>
-                                                                            {task.status === 'customer_link_created' ? <span className="text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded font-black inline-block text-center leading-tight"><span className="sm:hidden">รอลูกค้ากรอกข้อมูล</span><span className="hidden sm:block">รอลูกค้า<br/>กรอกข้อมูล</span></span> : 
-                                                                             task.status === 'customer_submitted' ? <span className="text-[9px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded font-black inline-block text-center leading-tight"><span className="sm:hidden">ลูกค้าส่งแล้ว - รอตรวจ</span><span className="hidden sm:block">ลูกค้าส่งแล้ว<br/>รอตรวจ</span></span> :
-                                                                             task.status === 'draft' ? <span className="text-[9px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-black">รอแอดมินอนุมัติ</span> : 
-                                                                             task.status === 'pending' ? <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded font-black animate-pulse">รอส่งใน {getCountdown(task.targetTime)}</span> :
-                                                                             task.status === 'success' ? <span className="text-[9px] text-green-600 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded font-black">ส่งสำเร็จ</span> : null}
-                                                                        </div>
-                                                                        <div className="font-black text-slate-800 text-sm truncate">
-                                                                            {task.taskName}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 shrink-0 pl-2">
-                                                                    <div className="text-right shrink-0 hidden sm:block">
-                                                                        <div className="text-[9px] font-mono text-slate-400">เพิ่ม: {formatDisplayDate(task.createdAt)} {formatDisplayTime(task.createdAt)}</div>
-                                                                        <div className="text-[10px] font-mono text-indigo-600 font-bold mt-0.5">ส่ง: {formatDisplayDate(task.targetTime)} {formatDisplayTime(task.targetTime)}</div>
-                                                                    </div>
-                                                                    {['draft', 'customer_submitted'].includes(task.status) && currentUserData?.permissions?.canManageTasks && 
-                                                                        <button onClick={(e) => { e.stopPropagation(); triggerConfirm("อนุมัติส่งคิว", "เปลี่ยนสถานะเป็นคิวส่งจริง?", () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).update({ status: 'pending' })); }} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all" title="อนุมัติ"><Icon name="check" className="w-4 h-4" /></button>}
-                                                                    {currentUserData?.permissions?.canDeleteAnything && <button onClick={(e) => { e.stopPropagation(); triggerConfirm("ลบรายการ", "ลบ?", () => { db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id).delete(); showToast('ลบแล้ว'); }, 'danger') }} className="p-2 text-slate-200 hover:text-red-500 transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>}
-                                                                </div>
-                                                            </div>
-                                                            <div className="h-1.5 w-full bg-slate-50"><div className="h-full progress-line-animate" style={{ width: `${task.status === 'pending' ? Math.min(100, Math.max(0, (1 - (task.targetTime - currentTime) / (task.targetTime - task.createdAt)) * 100)) : 100}%`, backgroundColor: task.status === 'success' ? '#10b981' : task.status === 'customer_submitted' ? '#6366f1' : task.status === 'customer_link_created' ? '#34d399' : task.status === 'draft' ? '#94a3b8' : '#f59e0b' }}></div></div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : <div className="bg-white rounded-[48px] border-4 border-dashed border-slate-100 p-16 md:p-32 text-center text-slate-300"><Icon name="mouse-pointer-2" className="w-10 h-10 opacity-20 mx-auto mb-6" /><p className="font-black uppercase tracking-widest">เลือกโปรเจกต์จากด้านซ้าย</p></div>}
-                            </div>
-                        </div>
+                        )}
                     </div>
 
-                    {/* MODAL: VIEW PROJECT DETAIL SUB-MODAL */}
-                    {selectedProjectDetail && (
-                        <div className="fixed inset-0 z-[260] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
-                                <div className="flex justify-between items-center border-b p-6 sm:p-8 bg-slate-50 shrink-0">
-                                    <div>
-                                        <h2 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-3">
-                                            <Icon name="folder" className="text-indigo-600"/> {selectedProjectDetail.title}
-                                        </h2>
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase mt-2">ชื่อเรียก: {selectedProjectDetail.customName}</div>
-                                    </div>
-                                    <button onClick={() => setSelectedProjectDetail(null)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar text-left bg-white">
-                                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-50">
-                                        <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                            คิวงานทั้งหมดในโปรเจกต์นี้ ({tasks.filter(t => t.projectId === selectedProjectDetail.id).length})
-                                        </h4>
-                                        <select value={projectDetailSortBy} onChange={e => setProjectDetailSortBy(e.target.value)} className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 ring-indigo-100 cursor-pointer shadow-sm">
-                                            <option value="createdAt_desc">เพิ่มล่าสุด</option>
-                                            <option value="createdAt_asc">เพิ่มเก่าสุด</option>
-                                            <option value="targetTime_asc">กำหนดส่งเร็วสุด</option>
-                                            <option value="targetTime_desc">กำหนดส่งช้าสุด</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-4">
-                                        {(() => {
-                                            const projectTasks = tasks.filter(t => t.projectId === selectedProjectDetail.id).sort((a,b) => {
-                                                if (projectDetailSortBy === 'createdAt_desc') return (b.createdAt || 0) - (a.createdAt || 0);
-                                                if (projectDetailSortBy === 'createdAt_asc') return (a.createdAt || 0) - (b.createdAt || 0);
-                                                if (projectDetailSortBy === 'targetTime_asc') return (a.targetTime || 0) - (b.targetTime || 0);
-                                                if (projectDetailSortBy === 'targetTime_desc') return (b.targetTime || 0) - (a.targetTime || 0);
-                                                return 0;
-                                            });
-                                            if (projectTasks.length === 0) return <p className="text-center text-slate-400 p-8 border-2 border-dashed border-slate-100 rounded-3xl">ยังไม่มีคิวงานในโปรเจกต์นี้</p>;
-                                            
-                                            return projectTasks.map(t => (
-                                                <div key={t.id} className="p-5 rounded-2xl border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 hover:bg-white transition-all gap-3">
-                                                    <div className="flex flex-col items-start gap-1.5 w-full sm:w-auto">
-                                                        <span className={`text-[9px] px-2 py-0.5 rounded-lg border font-black uppercase tracking-widest inline-block text-center leading-tight ${
-                                                            t.status === 'success' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                            t.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                                                            t.status === 'customer_submitted' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
-                                                            t.status === 'customer_link_created' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                                            'bg-slate-50 text-slate-500 border-slate-200'
-                                                        }`}>
-                                                            {t.status === 'success' ? 'สำเร็จ' :
-                                                             t.status === 'pending' ? 'รอส่ง' :
-                                                             t.status === 'customer_submitted' ? 'ลูกค้าส่งแล้ว - รอตรวจ' :
-                                                             t.status === 'customer_link_created' ? 'รอลูกค้ากรอกข้อมูล' : 'ร่าง'}
-                                                        </span>
-                                                        <div className="font-black text-slate-800 text-base leading-tight mt-0.5">
-                                                            {t.taskName} 
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-left sm:text-right shrink-0">
-                                                        <div className="text-[10px] font-mono text-slate-400">เพิ่ม: {formatDisplayDate(t.createdAt)} {formatDisplayTime(t.createdAt)}</div>
-                                                        <div className="text-[10px] font-mono text-indigo-600 font-bold mt-0.5">ส่ง: {formatDisplayDate(t.targetTime)} {formatDisplayTime(t.targetTime)}</div>
-                                                    </div>
-                                                </div>
-                                            ));
-                                        })()}
-                                    </div>
-                                </div>
-                                <div className="p-5 border-t border-slate-100 bg-white text-center shrink-0">
-                                    <a href={selectedProjectDetail.url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 w-full py-4 bg-slate-50 hover:bg-slate-100 text-indigo-600 font-black rounded-2xl transition-all">
-                                        <Icon name="external-link" className="w-5 h-5"/> เปิดลิงก์ฟอร์มต้นฉบับ
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* MODAL: VIEW STATS DETAILS (View-Only Pop-up จากหน้าหลัก) */}
+                    {/* MODAL: VIEW STATS DETAILS (View-Only Pop-up จากหน้า Dashboard) */}
                     {viewStatModal && (
-                        <div className="fixed inset-0 z-[250] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden my-auto">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b p-6 bg-slate-50 shrink-0 gap-4">
+                        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+                                <div className="flex justify-between items-center border-b p-6 bg-slate-50 shrink-0">
                                     <h2 className="text-xl font-black text-slate-800 flex items-center gap-3">
                                         {viewStatModal === 'projects' && <><Icon name="folder" className="text-indigo-600"/> โปรเจกต์ทั้งหมด</>}
                                         {viewStatModal === 'tasks' && <><Icon name="layers" className="text-blue-600"/> คิวงานทั้งหมดในระบบ</>}
                                         {viewStatModal === 'pending' && <><Icon name="clock" className="text-amber-500"/> คิวงานที่รอส่งและร่าง</>}
                                         {viewStatModal === 'success' && <><Icon name="check-circle-2" className="text-green-500"/> งานที่ส่งสำเร็จแล้ว</>}
                                         {viewStatModal === 'admins' && <><Icon name="users" className="text-indigo-600"/> ทีมงานระบบ (ดูสิทธิ์การใช้งาน)</>}
-                                        {viewStatModal === 'finance' && <><Icon name="pie-chart" className="text-green-600"/> ประวัติการเงินทั้งหมด</>}
                                     </h2>
-                                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                                        {viewStatModal !== 'admins' && (
-                                            <button onClick={() => handleExportExcel(viewStatModal)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black flex items-center gap-1 transition-all hover:bg-indigo-100 active:scale-95 border border-indigo-100"><Icon name="download" className="w-3 h-3"/> โหลด Excel</button>
-                                        )}
-                                        <button onClick={() => setViewStatModal(null)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
-                                    </div>
+                                    <button onClick={() => setViewStatModal(null)} className="p-2 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200"><Icon name="x" className="w-4 h-4" /></button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar text-left bg-white">
-                                    {['tasks', 'pending', 'success', 'finance'].includes(viewStatModal) && (
-                                        <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-50">
-                                            <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                                จำนวนรายการทั้งหมด {
-                                                    viewStatModal === 'tasks' ? tasks.length :
-                                                    viewStatModal === 'pending' ? tasks.filter(t => ['pending', 'draft', 'customer_link_created', 'customer_submitted'].includes(t.status)).length :
-                                                    viewStatModal === 'success' ? tasks.filter(t => t.status === 'success').length :
-                                                    viewStatModal === 'finance' ? financeRecords.length : 0
-                                                } รายการ
-                                            </div>
-                                            <div className="flex justify-end gap-2">
-                                                {['tasks', 'pending', 'success'].includes(viewStatModal) && (
-                                                    <select value={modalSortBy} onChange={e => setModalSortBy(e.target.value)} className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 ring-indigo-100 cursor-pointer shadow-sm">
-                                                        <option value="createdAt_desc">เพิ่มล่าสุด</option>
-                                                        <option value="createdAt_asc">เพิ่มเก่าสุด</option>
-                                                        <option value="targetTime_asc">ส่งเร็วสุด</option>
-                                                        <option value="targetTime_desc">ส่งช้าสุด</option>
-                                                    </select>
-                                                )}
-                                                {viewStatModal === 'finance' && (
-                                                    <select value={financeSortBy} onChange={e => setFinanceSortBy(e.target.value)} className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 ring-indigo-100 cursor-pointer shadow-sm">
-                                                        <option value="date_desc">เพิ่มล่าสุด</option>
-                                                        <option value="date_asc">เพิ่มเก่าสุด</option>
-                                                        <option value="amount_desc">ยอดมากสุด</option>
-                                                        <option value="amount_asc">ยอดน้อยสุด</option>
-                                                    </select>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
                                     <div className="space-y-3">
                                         {/* Render Projects */}
                                         {viewStatModal === 'projects' && projects.map(p => (
-                                            <div key={p.id} onClick={() => setSelectedProjectDetail(p)} className="p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all cursor-pointer group flex justify-between items-center">
-                                                <div>
-                                                    <div className="font-black text-slate-800 text-sm group-hover:text-indigo-700 transition-colors">{p.title}</div>
-                                                    <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">ชื่อเรียก: {p.customName}</div>
-                                                    <div className="text-[10px] text-slate-400 font-bold mt-1">สร้างโดย: {p.createdBy} • จำนวนคิว {tasks.filter(t => t.projectId === p.id).length} รายการ</div>
-                                                </div>
-                                                <Icon name="chevron-right" className="w-4 h-4 text-slate-300 group-hover:text-indigo-500"/>
+                                            <div key={p.id} className="p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white transition-all">
+                                                <div className="font-black text-slate-800 text-sm">{p.title}</div>
+                                                <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">ชื่อเรียก: {p.customName}</div>
+                                                <div className="text-[10px] text-slate-400 font-bold mt-1">สร้างโดย: {p.createdBy}</div>
                                             </div>
                                         ))}
-
                                         {/* Render Tasks */}
                                         {['tasks', 'pending', 'success'].includes(viewStatModal) && (() => {
                                             const filteredTasks = tasks.filter(t => {
                                                 if(viewStatModal === 'pending') return ['pending', 'draft', 'customer_link_created', 'customer_submitted'].includes(t.status);
                                                 if(viewStatModal === 'success') return t.status === 'success';
                                                 return true;
-                                            }).sort((a,b) => {
-                                                if (modalSortBy === 'createdAt_desc') return (b.createdAt || 0) - (a.createdAt || 0);
-                                                if (modalSortBy === 'createdAt_asc') return (a.createdAt || 0) - (b.createdAt || 0);
-                                                if (modalSortBy === 'targetTime_asc') return (a.targetTime || 0) - (b.targetTime || 0);
-                                                if (modalSortBy === 'targetTime_desc') return (b.targetTime || 0) - (a.targetTime || 0);
-                                                return 0;
-                                            });
+                                            }).sort((a,b) => b.targetTime - a.targetTime);
                                             
                                             if(filteredTasks.length === 0) return <p className="text-center text-slate-400 p-4">ไม่มีข้อมูลในหมวดหมู่นี้</p>;
                                             
                                             return filteredTasks.map(t => (
                                                 <div key={t.id} className="p-4 rounded-2xl border border-slate-100 flex items-start justify-between bg-slate-50">
-                                                    <div className="flex flex-col items-start gap-1">
-                                                        <span className={`text-[9px] px-2 py-0.5 rounded-lg border font-black uppercase tracking-widest inline-block text-center leading-tight ${
-                                                            t.status === 'success' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                            t.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                                                            t.status === 'customer_submitted' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
-                                                            t.status === 'customer_link_created' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                                            'bg-slate-50 text-slate-500 border-slate-200'
-                                                        }`}>
-                                                            {t.status === 'success' ? 'สำเร็จ' :
-                                                             t.status === 'pending' ? 'รอส่ง' :
-                                                             t.status === 'customer_submitted' ? 'ลูกค้าส่งแล้ว - รอตรวจ' :
-                                                             t.status === 'customer_link_created' ? 'รอลูกค้ากรอกข้อมูล' : 'ร่าง'}
-                                                        </span>
-                                                        <div className="font-black text-slate-800 text-sm leading-tight mt-0.5">
+                                                    <div>
+                                                        <div className="font-black text-slate-800 text-sm flex items-center gap-2">
                                                             {t.taskName} 
+                                                            <span className={`text-[8px] px-1.5 py-0.5 rounded text-white ${t.status === 'success'?'bg-green-500': t.status==='pending'?'bg-amber-500': t.status==='customer_submitted'?'bg-indigo-500': t.status==='customer_link_created'?'bg-emerald-500':'bg-slate-400'}`}>{t.status}</span>
                                                         </div>
-                                                        <div className="text-[10px] text-slate-500 uppercase">โปรเจกต์: {t.projectCustomName}</div>
+                                                        <div className="text-[10px] text-slate-500 uppercase mt-1">โปรเจกต์: {t.projectCustomName}</div>
                                                     </div>
-                                                    <div className="text-right shrink-0 mt-1">
-                                                        <div className="text-[10px] font-mono text-slate-400">เพิ่ม: {formatDisplayDate(t.createdAt)} {formatDisplayTime(t.createdAt)}</div>
-                                                        <div className="text-[10px] font-mono text-indigo-600 font-bold mt-0.5">ส่ง: {formatDisplayDate(t.targetTime)} {formatDisplayTime(t.targetTime)}</div>
+                                                    <div className="text-right">
+                                                        <div className="text-[10px] font-mono text-slate-400">{formatDisplayDate(t.targetTime)}</div>
+                                                        <div className="text-[10px] font-mono text-slate-400">{formatDisplayTime(t.targetTime)}</div>
                                                     </div>
                                                 </div>
                                             ))
                                         })()}
-
-                                        {/* Render Finance */}
-                                        {viewStatModal === 'finance' && (() => {
-                                            if(financeRecords.length === 0) return <p className="text-center text-slate-400 p-4">ไม่มีประวัติการเงิน</p>;
-                                            return financeRecords.sort((a,b) => {
-                                                if (financeSortBy === 'date_desc') return (b.date || 0) - (a.date || 0);
-                                                if (financeSortBy === 'date_asc') return (a.date || 0) - (b.date || 0);
-                                                if (financeSortBy === 'amount_desc') return b.amount - a.amount;
-                                                if (financeSortBy === 'amount_asc') return a.amount - b.amount;
-                                                return 0;
-                                            }).map(rec => (
-                                                <div key={rec.id} className="p-4 rounded-2xl border border-slate-100 flex items-start justify-between bg-slate-50">
-                                                    <div className="text-left flex items-start gap-3">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${rec.type === 'income' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}><Icon name={rec.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'} className="w-4 h-4"/></div>
-                                                        <div>
-                                                            <div className="text-[9px] text-slate-400 font-mono tracking-wide">{formatDisplayDate(rec.date)} {formatDisplayTime(rec.date)} • ผู้บันทึก: {rec.createdBy}</div>
-                                                            <div className="text-sm font-black text-slate-800 leading-tight mt-0.5">{rec.customerName}</div>
-                                                            <div className="text-xs font-bold text-slate-500 mt-1">{rec.note}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-1 shrink-0">
-                                                        <span className={`text-lg font-black ${rec.type === 'income' ? 'text-green-600' : 'text-red-600'}`}> {rec.type === 'income' ? '+' : '-'} {rec.amount.toLocaleString()} </span>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        })()}
-
                                         {/* Render Admins */}
                                         {viewStatModal === 'admins' && allAdmins.map(admin => (
                                             <div key={admin.id} className="p-5 rounded-3xl border border-slate-100 bg-slate-50">
@@ -1788,16 +1092,16 @@
 
                     {/* MODAL: ADMIN MANAGEMENT */}
                     {isAdminPanelOpen && (
-                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                                 <div className="flex justify-between items-center border-b p-8 bg-white shrink-0">
                                     <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight"><Icon name="settings" className="text-slate-600" /> ตั้งค่าระบบ (PepStudio)</h2>
-                                    <button onClick={() => setIsAdminPanelOpen(false)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
+                                    <button onClick={() => setIsAdminPanelOpen(false)} className="p-2 hover:bg-slate-50 rounded-full"><Icon name="x" /></button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar text-left">
                                     <div className="grid md:grid-cols-2 gap-10">
                                         <div className="space-y-6">
-                                            <div className="p-6 bg-white rounded-3xl space-y-6 border border-slate-200 shadow-sm">
+                                            <div className="p-6 bg-slate-50 rounded-3xl space-y-6 border border-slate-100">
                                                 <div className="space-y-4">
                                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ข้อมูลเว็บไซต์</h4>
                                                     <input type="text" value={appSettings.siteName} onChange={e => setAppSettings({...appSettings, siteName: e.target.value})} placeholder="ชื่อเว็บไซต์" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold shadow-sm" />
@@ -1812,28 +1116,13 @@
                                                 </div>
                                             </div>
                                             {currentUserData?.permissions?.canDeleteAnything && (
-                                                <div className="space-y-4">
-                                                    {/* Export Data Zone */}
-                                                    <div className="p-6 bg-white rounded-3xl border border-indigo-100 shadow-sm space-y-4">
-                                                        <div className="flex items-center gap-3 text-indigo-600 mb-2">
-                                                            <Icon name="download-cloud" className="w-6 h-6"/>
-                                                            <h4 className="font-black">ส่งออกข้อมูล (Excel)</h4>
-                                                        </div>
-                                                        <button onClick={() => handleExportExcel('all')} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black transition-all hover:bg-indigo-700 active:scale-95 shadow-md flex items-center justify-center gap-2">
-                                                            <Icon name="file-spreadsheet" className="w-5 h-5"/>
-                                                            ส่งออกข้อมูลทั้งหมด (แยกชีท)
-                                                        </button>
+                                                <div className="p-6 bg-red-50 rounded-3xl border border-red-100 space-y-4">
+                                                    <div className="flex items-center gap-3 text-red-600 mb-2">
+                                                        <Icon name="alert-triangle" className="w-6 h-6"/>
+                                                        <h4 className="font-black">ล้างข้อมูลในระบบ</h4>
                                                     </div>
-
-                                                    {/* Danger Zone */}
-                                                    <div className="p-6 bg-white rounded-3xl border border-red-100 shadow-sm space-y-4">
-                                                        <div className="flex items-center gap-3 text-red-600 mb-2">
-                                                            <Icon name="alert-triangle" className="w-6 h-6"/>
-                                                            <h4 className="font-black">ล้างข้อมูลในระบบ</h4>
-                                                        </div>
-                                                        <p className="text-xs text-red-400 font-bold">โซนอันตราย เลือกลบข้อมูลทั้งหมดในหมวดหมู่ที่ต้องการ</p>
-                                                        <button onClick={() => setIsClearDataOpen(true)} className="w-full bg-white border-2 border-red-200 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3 rounded-xl font-black transition-all">จัดการล้างข้อมูล</button>
-                                                    </div>
+                                                    <p className="text-xs text-red-400 font-bold">โซนอันตราย เลือกลบข้อมูลทั้งหมดในหมวดหมู่ที่ต้องการ</p>
+                                                    <button onClick={() => setIsClearDataOpen(true)} className="w-full bg-white border-2 border-red-200 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3 rounded-xl font-black transition-all">จัดการล้างข้อมูล</button>
                                                 </div>
                                             )}
                                         </div>
@@ -1844,7 +1133,7 @@
                                             </div>
                                             <div className="space-y-3">
                                                 {allAdmins.map(admin => (
-                                                    <div key={admin.id} className={`p-5 rounded-3xl border flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between transition-all hover:shadow-md ${admin.status === 'blocked' ? 'bg-red-50/50 opacity-50 border-red-100' : 'bg-white shadow-sm border-slate-200'}`}>
+                                                    <div key={admin.id} className={`p-5 rounded-3xl border flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between transition-all hover:shadow-md ${admin.status === 'blocked' ? 'bg-red-50/50 opacity-50 border-red-100' : 'bg-white shadow-sm border-slate-100'}`}>
                                                         <div className="text-left flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-black"><Icon name="user" className="w-5 h-5"/></div>
                                                             <div>
@@ -1870,11 +1159,11 @@
 
                     {/* MODAL: EDIT/ADD SUB-ADMIN */}
                     {isEditingAdminModalOpen && (
-                        <div className="fixed inset-0 z-[160] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in zoom-in-95 overflow-y-auto">
-                            <form onSubmit={saveAdmin} className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left my-auto">
+                        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 modal-overlay animate-in zoom-in-95">
+                            <form onSubmit={saveAdmin} className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 space-y-6 text-left">
                                 <div className="flex justify-between items-center border-b pb-4">
                                     <h2 className="text-xl font-black flex items-center gap-3"><Icon name="user-check" className="text-indigo-600"/> {editingAdminId ? 'แก้ไขสิทธิ์แอดมิน' : 'สร้างแอดมินรอง'}</h2>
-                                    <button type="button" onClick={() => { setIsEditingAdminModalOpen(false); setEditingAdminId(null); }} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
+                                    <button type="button" onClick={() => { setIsEditingAdminModalOpen(false); setEditingAdminId(null); }} className="p-2 hover:bg-slate-50 rounded-full"><Icon name="x" className="w-5 h-5"/></button>
                                 </div>
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
@@ -1903,11 +1192,11 @@
 
                     {/* MODAL: CLEAR DATA CONFIRMATION */}
                     {isClearDataOpen && (
-                        <div className="fixed inset-0 z-[160] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in zoom-in-95 overflow-y-auto">
-                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-2 border-red-50 my-auto">
+                        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 modal-overlay animate-in zoom-in-95">
+                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl p-8 space-y-6 text-left border-2 border-red-50">
                                 <div className="flex justify-between items-center border-b pb-4">
                                     <h2 className="text-xl font-black flex items-center gap-3 text-red-600"><Icon name="trash" className="text-red-600"/> ล้างข้อมูลระบบ</h2>
-                                    <button onClick={() => setIsClearDataOpen(false)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
+                                    <button onClick={() => setIsClearDataOpen(false)} className="p-2 hover:bg-slate-50 rounded-full"><Icon name="x" className="w-5 h-5"/></button>
                                 </div>
                                 <p className="text-sm text-slate-500 font-bold leading-relaxed">เลือกส่วนของข้อมูลที่คุณต้องการล้างแบบถาวร <br/>(ข้อมูลที่ลบจะไม่สามารถนำกลับมาได้อีก)</p>
                                 <div className="space-y-3 font-bold">
@@ -1926,11 +1215,11 @@
 
                     {/* FINANCE MODAL */}
                     {isFinanceOpen && (
-                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                                 <div className="flex justify-between items-center border-b p-8 bg-white shrink-0">
                                     <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight"><Icon name="dollar-sign" className="text-green-600" /> จัดการการเงิน</h2>
-                                    <button onClick={() => setIsFinanceOpen(false)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
+                                    <button onClick={() => setIsFinanceOpen(false)} className="p-2 hover:bg-slate-50 rounded-full"><Icon name="x" /></button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar">
                                     <div className="grid md:grid-cols-2 gap-10">
@@ -1969,29 +1258,15 @@
                                             <button type="submit" className={`w-full text-white font-black py-4 rounded-3xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all ${financeForm.type === 'income' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>บันทึกรายการ</button>
                                         </form>
                                         <div className="space-y-4">
-                                            <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                                                <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">จำนวนรายการทั้งหมด {financeRecords.length} รายการ</h4>
-                                                <select value={financeSortBy} onChange={e => setFinanceSortBy(e.target.value)} className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 ring-indigo-100 cursor-pointer shadow-sm">
-                                                    <option value="date_desc">เพิ่มล่าสุด</option>
-                                                    <option value="date_asc">เพิ่มเก่าสุด</option>
-                                                    <option value="amount_desc">ยอดเงินมากสุด</option>
-                                                    <option value="amount_asc">ยอดเงินน้อยสุด</option>
-                                                </select>
-                                            </div>
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase">ประวัติรายการล่าสุด</h4>
                                             <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
                                                 {financeRecords.length === 0 && <p className="text-xs text-slate-400 p-4 bg-slate-50 rounded-2xl text-center">ยังไม่มีประวัติการเงิน</p>}
-                                                {financeRecords.sort((a,b) => {
-                                                    if (financeSortBy === 'date_desc') return (b.date || 0) - (a.date || 0);
-                                                    if (financeSortBy === 'date_asc') return (a.date || 0) - (b.date || 0);
-                                                    if (financeSortBy === 'amount_desc') return b.amount - a.amount;
-                                                    if (financeSortBy === 'amount_asc') return a.amount - b.amount;
-                                                    return 0;
-                                                }).map(rec => (
+                                                {financeRecords.sort((a,b) => b.date - a.date).map(rec => (
                                                     <div key={rec.id} className="p-4 bg-white border border-slate-100 shadow-sm rounded-3xl flex justify-between items-center group transition-all hover:shadow-md">
                                                         <div className="text-left flex items-start gap-3">
                                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1 ${rec.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}><Icon name={rec.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'} className="w-5 h-5"/></div>
                                                             <div>
-                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wide">{formatDisplayDate(rec.date)} {formatDisplayTime(rec.date)} • ผู้บันทึก: {rec.createdBy}</div>
+                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wide">{formatDisplayDate(rec.date)} • ผู้บันทึก: {rec.createdBy}</div>
                                                                 <div className="text-sm font-black text-slate-800 leading-tight mt-0.5">{rec.customerName}</div>
                                                                 <div className="text-xs font-bold text-slate-500 mt-1">{rec.note}</div>
                                                             </div>
@@ -2012,8 +1287,8 @@
 
                     {/* MODAL: ADD PROJECT */}
                     {isAddingProject && (
-                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("สร้างโปรเจกต์", "สร้างฐานข้อมูลจากฟอร์มนี้?", () => handleAddProject(e)); }} className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 space-y-6 my-auto">
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <form onSubmit={(e) => { e.preventDefault(); triggerConfirm("สร้างโปรเจกต์", "สร้างฐานข้อมูลจากฟอร์มนี้?", () => handleAddProject(e)); }} className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 space-y-6">
                                 <h2 className="text-2xl font-black flex items-center gap-3"><Icon name="plus-circle" className="text-indigo-600" /> เพิ่มโปรเจกต์ใหม่</h2>
                                 <div className="space-y-4 text-left">
                                     <input type="text" value={inputCustomName} onChange={e => setInputCustomName(e.target.value)} placeholder="ชื่อโปรเจกต์ (ตั้งเอง)" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold focus:ring-2 ring-indigo-100" required />
@@ -2030,16 +1305,16 @@
 
                     {/* MODAL: VIEW TASK DATA */}
                     {selectedTask && (
-                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
-                                <div className="flex justify-end p-4 bg-slate-50 shrink-0">
-                                    <button onClick={() => setSelectedTask(null)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-10 pt-2 custom-scrollbar text-left">
-                                    <div className="mb-6 border-b pb-4">
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b p-8 bg-white shrink-0">
+                                    <div className="text-left">
                                         <h2 className="text-xl font-black text-slate-800">{selectedTask.taskName}</h2>
                                         <span className="text-[10px] text-slate-400 uppercase tracking-widest">{selectedTask.projectCustomName}</span>
                                     </div>
+                                    <button onClick={() => setSelectedTask(null)} className="p-3 hover:bg-slate-50 rounded-full"><Icon name="x" /></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-10 pt-6 custom-scrollbar text-left">
                                     {projects.find(p => p.id === selectedTask.projectId)?.fields.map((f, i) => (
                                         <div key={i} className="bg-slate-50/50 p-4 rounded-3xl border border-slate-50 mb-3 hover:bg-slate-50 transition-all">
                                             <div className="text-[10px] text-slate-400 font-bold tracking-wide flex items-center gap-1">{f.label} {f.required && <span className="text-red-500">*</span>}</div>
@@ -2048,13 +1323,14 @@
                                     ))}
                                 </div>
                                 <div className="flex flex-col shrink-0">
+                                    {/* Action Buttons Row */}
                                     {(['customer_link_created', 'customer_submitted', 'draft'].includes(selectedTask.status)) && (
                                         <div className="flex flex-row border-t border-slate-100">
                                             {selectedTask.status === 'customer_link_created' && (
                                                 <button onClick={() => {
                                                     const link = `${window.location.origin}${window.location.pathname}?client_form=${selectedTask.id}`;
                                                     copyToClipboard(link, () => showToast('คัดลอกลิงก์แล้ว'));
-                                                }} className="flex-1 bg-emerald-50 text-emerald-600 font-black hover:bg-emerald-600 hover:white transition-all flex items-center justify-center gap-2 p-4 sm:p-5 border-r border-white">
+                                                }} className="flex-1 bg-emerald-50 text-emerald-600 font-black hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2 p-4 sm:p-5 border-r border-white">
                                                     <Icon name="copy" className="w-4 h-4"/> คัดลอกลิงก์ใหม่
                                                 </button>
                                             )}
@@ -2068,12 +1344,14 @@
                                                     setEditingTaskId(selectedTask.id);
                                                     setActiveProjectId(selectedTask.projectId);
                                                     setSelectedTask(null);
-                                                }} className="flex-1 bg-indigo-50 text-indigo-600 font-black hover:bg-indigo-600 hover:white transition-all flex items-center justify-center gap-2 p-4 sm:p-5">
+                                                }} className="flex-1 bg-indigo-50 text-indigo-600 font-black hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2 p-4 sm:p-5">
                                                     <Icon name="edit" className="w-4 h-4"/> ตรวจสอบ / แก้ไข
                                                 </button>
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Task Info Row */}
                                     <div className="w-full text-[10px] text-slate-400 font-bold uppercase p-4 tracking-widest text-center leading-relaxed border-t border-slate-100 bg-slate-50">
                                         สร้างโดย {selectedTask.createdBy} <br/> 
                                         ส่ง {formatDisplayDate(selectedTask.targetTime)} {formatDisplayTime(selectedTask.targetTime)}
@@ -2085,73 +1363,37 @@
 
                     {/* MODAL: FILL FORM DATA */}
                     {isFormModalOpen && activeProject && (
-                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 modal-overlay animate-in fade-in overflow-y-auto">
-                            <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
-                                <div className="flex justify-end p-4 bg-slate-50 shrink-0">
-                                    <button type="button" onClick={() => setIsFormModalOpen(false)} className="w-10 h-10 flex items-center justify-center shrink-0 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200 transition-all"><Icon name="x" className="w-5 h-5 text-slate-500" /></button>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar text-left bg-white space-y-6">
-                                    <div className="mb-6 border-b pb-6">
-                                        <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Icon name="file-edit" className="text-indigo-600"/> กรอกข้อมูลฟอร์ม</h2>
-                                        <div className="text-xs text-indigo-500 font-black uppercase mt-1 tracking-widest">{activeProject.title}</div>
-                                        {activeProject.description && <p className="text-[11px] text-slate-500 mt-4 whitespace-pre-wrap leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">{activeProject.description}</p>}
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 modal-overlay animate-in fade-in">
+                            <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                                <div className="flex justify-between items-center border-b p-8 bg-slate-50 shrink-0">
+                                    <div className="text-left">
+                                        <h2 className="text-xl font-black text-slate-800 flex items-center gap-3"><Icon name="file-edit" className="text-indigo-600"/> กรอกข้อมูลฟอร์ม</h2>
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-widest ml-9">{activeProject.title}</span>
                                     </div>
-                                    
+                                    <button type="button" onClick={() => setIsFormModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full bg-white shadow-sm border border-slate-200"><Icon name="x" className="w-4 h-4" /></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar text-left bg-white space-y-6">
                                     {activeProject.fields.map((f, i) => (
                                         <div key={i} className="space-y-2">
-                                            <div className="mb-2">
-                                                <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
-                                                    {f.label}
-                                                    {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
-                                                </label>
-                                                {f.description && <div className="text-[10px] text-slate-400 px-1 mt-0.5 whitespace-pre-wrap leading-tight">{f.description}</div>}
-                                            </div>
+                                            <label className="text-[11px] font-black text-slate-600 block px-1 flex items-center gap-1">
+                                                {f.label}
+                                                {f.required && <span className="text-red-500 text-sm leading-none">*</span>}
+                                            </label>
                                             {f.type === 'checkbox' ? (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                     {f.options.map((opt, oi) => (
-                                                        <label key={oi} className={`flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all border ${fieldErrors[f.entryId] ? 'border-red-300 bg-red-50/30' : 'border-transparent has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30'}`}>
+                                                        <label key={oi} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-all has-[:checked]:border-indigo-100 has-[:checked]:bg-indigo-50/30 border border-transparent">
                                                             <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 font-bold" checked={(fieldValues[f.entryId] || []).includes(opt)} onChange={() => toggleCheckbox(f.entryId, opt)} />
                                                             <span className="text-xs font-bold text-slate-700">{opt}</span>
                                                         </label>
                                                     ))}
                                                 </div>
                                             ) : f.options ? (
-                                                <select 
-                                                    value={fieldValues[f.entryId] || ''} 
-                                                    onChange={e => {
-                                                        setFieldValues({...fieldValues, [f.entryId]: e.target.value});
-                                                        if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
-                                                    }} 
-                                                    onBlur={e => {
-                                                        const err = validateField(f, e.target.value);
-                                                        if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
-                                                    }}
-                                                    className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold transition-all text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`}
-                                                >
+                                                <select value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:18px_18px] bg-[right:16px_center] bg-no-repeat font-bold focus:ring-2 ring-indigo-100 transition-all">
                                                     <option value="">เลือกคำตอบ</option>
                                                     {f.options.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                                 </select>
-                                            ) : (
-                                                <input 
-                                                    type="text" 
-                                                    value={fieldValues[f.entryId] || ''} 
-                                                    onChange={e => {
-                                                        setFieldValues({...fieldValues, [f.entryId]: e.target.value});
-                                                        if(fieldErrors[f.entryId]) setFieldErrors({...fieldErrors, [f.entryId]: null});
-                                                    }} 
-                                                    onBlur={e => {
-                                                        const err = validateField(f, e.target.value);
-                                                        if(err) setFieldErrors(prev => ({...prev, [f.entryId]: err}));
-                                                    }}
-                                                    className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:bg-white transition-all font-bold text-slate-700 ${fieldErrors[f.entryId] ? 'border-red-400 focus:ring-2 ring-red-100 bg-red-50/30' : 'border-slate-100 focus:ring-2 ring-indigo-100'}`} 
-                                                    placeholder={`กรอก ${f.label}`} 
-                                                />
-                                            )}
-                                            {fieldErrors[f.entryId] && (
-                                                <div className="text-red-500 text-[10px] mt-1.5 flex items-center gap-1 font-bold animate-in slide-in-from-top-1">
-                                                    <Icon name="alert-circle" className="w-3 h-3"/> {fieldErrors[f.entryId]}
-                                                </div>
-                                            )}
+                                            ) : <input type="text" value={fieldValues[f.entryId] || ''} onChange={e => setFieldValues({...fieldValues, [f.entryId]: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:ring-2 ring-indigo-100 transition-all font-bold" />}
                                         </div>
                                     ))}
                                 </div>
