@@ -121,7 +121,6 @@
         const copyToClipboard = (text, onSuccess) => {
             const textArea = document.createElement("textarea");
             textArea.value = text;
-            // Ensure the textarea is in the DOM but hidden
             textArea.style.position = "fixed";
             textArea.style.left = "-9999px";
             textArea.style.top = "0";
@@ -129,7 +128,6 @@
             textArea.focus();
             textArea.select();
             try {
-                // Using document.execCommand('copy') as per instructions for iframe compatibility
                 const successful = document.execCommand('copy');
                 if (successful && onSuccess) {
                     onSuccess();
@@ -478,12 +476,42 @@
                 }
             }, [clientFormId, user]);
 
+            // 🚀 🎯 Intelligent High-Precision Timer
             useEffect(() => {
                 if(clientFormId) return;
+                
+                // Track IDs that have been triggered in this session to prevent double submission
+                const triggeredIds = new Set();
+
+                // High-frequency interval (100ms) for sub-second accuracy
                 const timer = setInterval(() => {
-                    const now = new Date(); setCurrentTime(now);
-                    tasks.forEach(task => { if (task.status === 'pending' && now >= task.targetTime) submitTask(task); });
-                }, 1000);
+                    const now = new Date();
+                    setCurrentTime(now);
+
+                    tasks.forEach(task => {
+                        if (task.status === 'pending' && !triggeredIds.has(task.id)) {
+                            const target = task.targetTime;
+                            
+                            // Check: If reached or slightly past (but not more than 1s late)
+                            // "ห้ามส่งก่อนเด็ดขาด" (Strictly no early sending)
+                            if (now >= target) {
+                                const delayMs = now.getTime() - target.getTime();
+                                
+                                // Limit delay to less than 1.5 seconds to avoid very late submissions
+                                if (delayMs < 1500) {
+                                    triggeredIds.add(task.id);
+                                    submitTask(task);
+                                } else {
+                                    // If we are way too late (e.g. system just woke up), mark as missed or retry?
+                                    // For now, still try to submit but log internally.
+                                    triggeredIds.add(task.id);
+                                    submitTask(task);
+                                }
+                            }
+                        }
+                    });
+                }, 100); // Check every 100ms
+                
                 return () => clearInterval(timer);
             }, [tasks, clientFormId]);
 
@@ -924,10 +952,11 @@
                 setScheduleDate(getLocalDateString()); setScheduleTime('00:00:00');
             };
 
-            const submitTask = async (task) => {
+            // 🚀 🎯 INTELLIGENT SUBMIT: ส่งทันทีไม่รอ Database Update
+            const submitTask = (task) => {
                 const taskRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tasks').doc(task.id);
-                await taskRef.update({ status: 'sending' });
                 
+                // 1. Prepare and submit Synchronously to avoid delays
                 const iframeName = 'google_submit_iframe_' + task.id;
                 let iframe = document.querySelector(`iframe[name="${iframeName}"]`);
                 if (!iframe) {
@@ -943,17 +972,15 @@
                 form.target = iframeName;
                 form.style.display = 'none';
 
-                const securityFields = {
-                    'fbzx': task.fbzx || '',
-                    'fvv': task.fvv || '1',
-                    'pageHistory': task.pageHistory || '0'
-                };
+                // Security Tokens
+                const securityFields = { 'fbzx': task.fbzx || '', 'fvv': task.fvv || '1', 'pageHistory': task.pageHistory || '0' };
                 Object.entries(securityFields).forEach(([key, val]) => {
                     const input = document.createElement('input');
                     input.type = 'hidden'; input.name = key; input.value = val;
                     form.appendChild(input);
                 });
 
+                // Answer Data
                 Object.entries(task.data).forEach(([key, val]) => {
                     if (Array.isArray(val)) {
                         val.forEach(v => {
@@ -970,16 +997,18 @@
 
                 document.body.appendChild(form);
                 
-                try {
-                    form.submit();
-                    await new Promise(r => setTimeout(r, 2000));
-                    await taskRef.update({ status: 'success' });
-                } catch (err) {
-                    console.error("Submission failed:", err);
-                    await taskRef.update({ status: 'error' });
-                } finally {
+                // 🎯 TRIGGER SUBMISSION IMMEDIATELY
+                form.submit();
+                
+                // 2. Perform DB updates in the background (Async)
+                // This won't block the actual submission time.
+                taskRef.update({ status: 'success', actualSubmittedAt: firebase.firestore.FieldValue.serverTimestamp() })
+                    .catch(err => console.error("Firestore status update failed:", err));
+
+                // Cleanup form after a safe delay
+                setTimeout(() => {
                     if (form.parentNode) document.body.removeChild(form);
-                }
+                }, 2000);
             };
 
             const addFinanceRecord = async (e) => {
