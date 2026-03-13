@@ -1240,8 +1240,8 @@
                                                                     <div className="text-left overflow-hidden min-w-[100px]">
                                                                         <div className="flex items-center gap-1.5 mb-1">
                                                                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tIcon.dot} ${['pending', 'customer_link_created'].includes(task.status) ? 'animate-pulse' : ''}`} title={task.status}></span>
-                                                                            {task.status === 'customer_link_created' ? <span className="text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded font-black">รอลูกค้ากรอกข้อมูล</span> : 
-                                                                             task.status === 'customer_submitted' ? <span className="text-[9px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded font-black">ลูกค้าส่งแล้ว - รอตรวจ</span> :
+                                                                            {task.status === 'customer_link_created' ? <span className="text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded font-black inline-block text-center leading-tight"><span className="sm:hidden">รอลูกค้ากรอกข้อมูล</span><span className="hidden sm:block">รอลูกค้า<br/>กรอกข้อมูล</span></span> : 
+                                                                             task.status === 'customer_submitted' ? <span className="text-[9px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded font-black inline-block text-center leading-tight"><span className="sm:hidden">ลูกค้าส่งแล้ว - รอตรวจ</span><span className="hidden sm:block">ลูกค้าส่งแล้ว<br/>รอตรวจ</span></span> :
                                                                              task.status === 'draft' ? <span className="text-[9px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-black">รอแอดมินอนุมัติ</span> : 
                                                                              task.status === 'pending' ? <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded font-black animate-pulse">รอส่งใน {getCountdown(task.targetTime)}</span> :
                                                                              task.status === 'success' ? <span className="text-[9px] text-green-600 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded font-black">ส่งสำเร็จ</span> : null}
@@ -1296,7 +1296,7 @@
                                             return projectTasks.map(t => (
                                                 <div key={t.id} className="p-5 rounded-2xl border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 hover:bg-white transition-all gap-3">
                                                     <div className="flex flex-col items-start gap-1.5 w-full sm:w-auto">
-                                                        <span className={`text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-widest ${
+                                                        <span className={`text-[9px] px-2 py-0.5 rounded-lg border font-black uppercase tracking-widest inline-block text-center leading-tight ${
                                                             t.status === 'success' ? 'bg-green-50 text-green-600 border-green-200' :
                                                             t.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
                                                             t.status === 'customer_submitted' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
@@ -1305,8 +1305,8 @@
                                                         }`}>
                                                             {t.status === 'success' ? 'สำเร็จ' :
                                                              t.status === 'pending' ? 'รอส่ง' :
-                                                             t.status === 'customer_submitted' ? 'ลูกค้าส่งแล้ว' :
-                                                             t.status === 'customer_link_created' ? 'รอลูกค้ากรอก' : 'ร่าง'}
+                                                             t.status === 'customer_submitted' ? <><span className="sm:hidden">ลูกค้าส่งแล้ว - รอตรวจ</span><span className="hidden sm:block">ลูกค้าส่งแล้ว<br/>รอตรวจ</span></> :
+                                                             t.status === 'customer_link_created' ? <><span className="sm:hidden">รอลูกค้ากรอกข้อมูล</span><span className="hidden sm:block">รอลูกค้า<br/>กรอกข้อมูล</span></> : 'ร่าง'}
                                                         </span>
                                                         <div className="font-black text-slate-800 text-base leading-tight mt-0.5">
                                                             {t.taskName} 
@@ -1377,7 +1377,7 @@
                                             return filteredTasks.map(t => (
                                                 <div key={t.id} className="p-4 rounded-2xl border border-slate-100 flex items-start justify-between bg-slate-50">
                                                     <div className="flex flex-col items-start gap-1">
-                                                        <span className={`text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-widest ${
+                                                        <span className={`text-[9px] px-2 py-0.5 rounded-lg border font-black uppercase tracking-widest inline-block text-center leading-tight ${
                                                             t.status === 'success' ? 'bg-green-50 text-green-600 border-green-200' :
                                                             t.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
                                                             t.status === 'customer_submitted' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
@@ -1386,8 +1386,8 @@
                                                         }`}>
                                                             {t.status === 'success' ? 'สำเร็จ' :
                                                              t.status === 'pending' ? 'รอส่ง' :
-                                                             t.status === 'customer_submitted' ? 'ลูกค้าส่งแล้ว' :
-                                                             t.status === 'customer_link_created' ? 'รอลูกค้ากรอก' : 'ร่าง'}
+                                                             t.status === 'customer_submitted' ? <><span className="sm:hidden">ลูกค้าส่งแล้ว - รอตรวจ</span><span className="hidden sm:block">ลูกค้าส่งแล้ว<br/>รอตรวจ</span></> :
+                                                             t.status === 'customer_link_created' ? <><span className="sm:hidden">รอลูกค้ากรอกข้อมูล</span><span className="hidden sm:block">รอลูกค้า<br/>กรอกข้อมูล</span></> : 'ร่าง'}
                                                         </span>
                                                         <div className="font-black text-slate-800 text-sm leading-tight mt-0.5">
                                                             {t.taskName} 
